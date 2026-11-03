@@ -1,0 +1,20 @@
+{
+  "name": "herdr-latex",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import ./tests/register-mocks.js --test mods/latex/tests/*.test.js",
+    "format:check": "prettier --check \"mods/latex/*.js\" \"mods/latex/contracts.d.ts\" \"mods/latex/tests/*.test.js\" \"tests/**/*.js\" package.json tsconfig.json",
+    "format": "prettier --write \"mods/latex/*.js\" \"mods/latex/contracts.d.ts\" \"mods/latex/tests/*.test.js\" \"tests/**/*.js\" package.json tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2"
+  }
+}

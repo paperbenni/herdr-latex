@@ -1,0 +1,44 @@
+[project]
+name = "herdr-latex"
+version = "0.1.0"
+description = "LaTeX compilation and local PDF previews for Herdr"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".runtime"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "mods/latex"
+files = ["mods/latex/helper.py", "mods/latex/remote.py", "mods/latex/tests", "scripts"]
+warn_unreachable = true
+
+[tool.pytest.ini_options]
+testpaths = ["mods/latex/tests"]
+pythonpath = ["mods/latex"]
+addopts = "--strict-config --strict-markers"
+
+[tool.coverage.run]
+source = ["mods/latex"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
+]

@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "herdr": ["./types/herdr-api.d.ts"]
+    },
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": [
+    "mods/latex/*.js",
+    "mods/latex/contracts.d.ts",
+    "mods/latex/tests/*.test.js",
+    "tests/**/*.js",
+    "types/*.d.ts"
+  ],
+  "exclude": ["node_modules", "**/gpui-kit.d.ts", "**/herdr.d.ts"]
+}

@@ -89,7 +89,7 @@ panel does not draw an agent list or animate those states.
 ## Built from
 
 Install only `mods/latex/` from this repository. It contains a GPUI `View` in
-`main.js`, a standard-library Python helper in `helper.py`, a `mod.json` with
+`main.js`, standard-library Python helpers in `helper.py` and `remote.py`, a `mod.json` with
 `place: none`, keyboard focus opt-in and 620×660 overlay dimensions, usage notes,
 and regression tests. Small monochrome SVG icons live under `icons/` and are
 rendered using GPUI's tinted `svg()` builder. Do not install generated typings,
@@ -113,7 +113,10 @@ Viewer launch uses `xdg-open` on Linux or `open` on macOS.
 
 For a visible **LaTeX** button with an activity indicator, copy
 `mods/latex/toolbar-button.js` into the person's cloned/personal toolbar mod as
-`latex-button.js`, then integrate its native View:
+`latex-button.js`. Also copy `model.js` as `latex-model.js` into that toolbar
+mod and change the button's import from `"./model.js"` to `"./latex-model.js"`.
+Copy `contracts.d.ts` there for editor typing (runtime does not load it).
+Then integrate its native View:
 
 ```js
 import LatexToolbarButton, { latexButtonContext } from "./latex-button.js";
@@ -165,8 +168,8 @@ when copying it.
   launcher is implemented but has not been tested.
 - Herdr 0.1.12 is the tested API version. Read the installed type declarations if
   native builders differ on another version.
-- The machine needs Python 3, `latexmk` and the chosen engine on its PATH. The
-  local desktop also needs Python 3, `hc`, an OS opener and a PDF viewer.
+- The machine needs Python 3.11+, `latexmk` and the chosen engine on its PATH. The
+  local desktop also needs Python 3.11+, `hc`, an OS opener and a PDF viewer.
 - Reuse Herdr's configured connection; do not resolve an SSH target or launch a
   separate SSH connection. The mod must work without SSH-agent environment variables.
 - Git discovery includes tracked and untracked TeX files and respects ignored
@@ -203,3 +206,10 @@ when copying it.
    transfer and stops polling without closing the viewer. Closing/reopening the
    panel can still control its helper. No duplicate stop control is shown.
 7. `herdr-app check mods/latex`, the Python suite and the Node context tests pass.
+
+
+## Developer checks
+
+Use `just setup` once, then `just check` for Ruff, formatting, strict Python and
+JavaScript typing, and both test suites. `just check-native` validates native
+rendering separately. See the repository README for dependencies and API snapshots.

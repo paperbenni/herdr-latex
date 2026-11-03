@@ -24,7 +24,9 @@ provided toolbar component with live context forwarding. A personal layout is no
 bundled, so installation can fit your existing layout.
 
 For the activity indicator, copy `mods/latex/toolbar-button.js` into your personal
-toolbar mod as `latex-button.js`, import its default View, and mount it using
+toolbar mod as `latex-button.js`. Copy `model.js` there as `latex-model.js`,
+change the button’s import to `"./latex-model.js"`, copy `contracts.d.ts` for editor
+typing, import its default View, and mount it using
 `cx.new()` in the toolbar's `init` method. Render the returned entity as a child.
 The component handles opening the panel, scoped green styling, the play symbol and
 the active-session chooser. Forward `latexButtonContext()` from the parent toolbar
@@ -86,9 +88,9 @@ editor integration is not included.
 Tested with Herdr 0.1.12 on Linux. The code also selects macOS's `open` launcher,
 but macOS has not been tested. Windows is not supported.
 
-- **Local computer:** Python 3, `hc`, a PDF viewer, and `xdg-open` on Linux
+- **Local computer:** Python 3.11+, `hc`, a PDF viewer, and `xdg-open` on Linux
   or `open` on macOS.
-- **Machine doing the build:** Python 3, `latexmk`, and the selected engine
+- **Machine doing the build:** Python 3.11+, `latexmk`, and the selected engine
   (`pdflatex`, `lualatex` or `xelatex`).
 - **Remote work:** a connected machine in Herdr. Discovery, compilation, metadata
   checks and binary PDF transfers all use that existing connection through
@@ -117,16 +119,36 @@ generated typings are excluded from this repository.
 
 ## Development
 
-The runtime sources are `mods/latex/main.js`, `helper.py` and `mod.json`.
-The panel's small monochrome SVG icons live in `mods/latex/icons/`.
-See [RECIPE.md](RECIPE.md) for the interface and integration behavior.
+Install [uv](https://docs.astral.sh/uv/), [just](https://just.systems/), Python
+3.11+ and Node 22.15+ (Node 24 recommended). The Python integration tests also
+require `latexmk`, `pdflatex` and `pdfinfo` (`latexmk texlive-latex-base poppler-utils`
+on Debian/Ubuntu).
 
 ```sh
-herdr-app check ./mods/latex
-python3 -m unittest discover -s mods/latex/tests -v
-node --test mods/latex/tests/test_context.cjs mods/latex/tests/test_toolbar.cjs mods/latex/tests/test_session_picker.cjs
+just setup       # install locked development dependencies
+just check       # formatting, Ruff, strict mypy, strict JS types, Python + JS tests
+just format      # apply formatting and safe Ruff fixes
+just coverage    # Python coverage report
+just check-native # validate native rendering with an installed Herdr app
 ```
 
-The Python integration tests additionally need local `latexmk`, `pdflatex`, and
-`pdfinfo`. The JavaScript context tests use Node's built-in test runner; Node is
-not required to run the installed mod.
+CI runs `just check`, including real LaTeX compilation and background-worker
+integration tests. No development packages are required by the installed mod.
+
+All Python source and tests use strict mypy. Ruff checks imports and code, and
+Ruff/Prettier enforce formatting. The native JavaScript stays directly executable
+by Herdr: JSDoc and shared domain declarations provide strict TypeScript `checkJs`
+checking without a build step. JSON boundaries validate unknown data at runtime.
+API snapshots and their refresh procedure are documented in [types/README.md](types/README.md).
+
+The Node tests import production modules through a small native API mock and
+exercise context changes, stale async responses, Stop controls, toolbar activity,
+and navigation. Python tests cover JSON validation, safe discovery, binary PDF
+transfers, incomplete replacement recovery, real compilation, background workers,
+upgrades, and cancellation. Herdr's native check and a visual smoke test are still
+needed after UI changes because mocks do not lay out GPUI elements.
+
+`helper.py` supervises local work; `remote.py` is the typed standalone script sent
+to the selected machine using Herdr's connection. Always deploy both files.
+`model.js` validates shared/frontend data; the panel and toolbar both import it.
+The small monochrome SVG icons live in `mods/latex/icons/`.

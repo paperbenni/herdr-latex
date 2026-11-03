@@ -54,8 +54,8 @@ file. Relative output paths resolve against the project directory. It changes
 which PDF is previewed, not latexmk's output options; project `.latexmkrc` files
 continue to control the build.
 
-Requirements: local Python 3, `hc`, and `xdg-open` (Linux) or `open` (macOS).
-The selected machine needs Python 3 and `latexmk` plus the chosen TeX engine.
+Requirements: local Python 3.11+, `hc`, and `xdg-open` (Linux) or `open` (macOS).
+The selected machine needs Python 3.11+ and `latexmk` plus the chosen TeX engine.
 Discovery, builds and PDF transfers use the existing Herdr connection through
 `hc exec --on`. The mod does not launch SSH or require an SSH-agent environment.
 Downloads use 4 MiB binary chunks below Herdr's output limit, then atomically

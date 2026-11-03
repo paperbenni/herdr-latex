@@ -5,3 +5,10 @@
 **/herdr.d.ts
 **/jsconfig.json
 **/*.error
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/

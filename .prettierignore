@@ -1,0 +1,7 @@
+node_modules/
+types/
+mods/latex/gpui-kit.d.ts
+mods/latex/herdr.d.ts
+mods/latex/jsconfig.json
+**/.runtime/
+package-lock.json
