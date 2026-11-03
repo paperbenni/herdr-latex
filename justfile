@@ -33,3 +33,7 @@ coverage:
 # Requires the desktop app, independent of the portable test suite.
 check-native:
     herdr-app check ./mods/latex
+
+# Copy the launcher and shared modules as a bundle into a personal toolbar mod.
+toolbar-bundle destination:
+    uv run --locked python scripts/toolbar_bundle.py '{{destination}}'

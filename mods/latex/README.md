@@ -9,7 +9,10 @@ herdr-app do mod.open --name latex
 The reusable `toolbar-button.js` View turns green with ▶ for activity in the
 current folder. Elsewhere it stays neutral with a green dot; clicking offers
 **Open LaTeX here** or **Go to active preview**. See RECIPE.md for integration,
-including forwarding `latexButtonContext()` from the parent toolbar.
+including forwarding `latexButtonContext()` from the parent toolbar. The toolbar
+bundle includes `session.js`, `helper-client.js`, `model.js` and `contracts.d.ts`
+alongside the launcher; copy these together without changing their imports.
+`just toolbar-bundle <personal-toolbar>/latex` refreshes that bundle from source.
 
 The panel follows the current Herdr session's machine and live working directory.
 Switch sessions or `cd` in the terminal to change folders. The current machine
@@ -89,3 +92,7 @@ To validate an installed copy directly:
 ```sh
 herdr-app check ~/.config/herdr-app/mods/latex
 ```
+
+The runtime UI sections live in `ui/`. Preserve that directory and every runtime
+JavaScript module when updating the installed mod. `helper.py` and `remote.py`
+must also be deployed together.

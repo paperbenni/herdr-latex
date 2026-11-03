@@ -9,8 +9,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import ./tests/register-mocks.js --test mods/latex/tests/*.test.js",
-    "format:check": "prettier --check \"mods/latex/*.js\" \"mods/latex/contracts.d.ts\" \"mods/latex/tests/*.test.js\" \"tests/**/*.js\" package.json tsconfig.json",
-    "format": "prettier --write \"mods/latex/*.js\" \"mods/latex/contracts.d.ts\" \"mods/latex/tests/*.test.js\" \"tests/**/*.js\" package.json tsconfig.json"
+    "format:check": "prettier --check \"mods/latex/**/*.js\" \"mods/latex/contracts.d.ts\" \"mods/latex/tests/*.test.js\" \"tests/**/*.js\" package.json tsconfig.json",
+    "format": "prettier --write \"mods/latex/**/*.js\" \"mods/latex/contracts.d.ts\" \"mods/latex/tests/*.test.js\" \"tests/**/*.js\" package.json tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "26.6.6",

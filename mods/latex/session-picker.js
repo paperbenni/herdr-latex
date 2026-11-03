@@ -3,9 +3,7 @@ import { h_flex, v_flex } from "gpui-base";
 import { closeOverlay, panes, run, spaces } from "herdr";
 import { palette, readPickerOptions } from "./model.js";
 
-/** @param {string | null | undefined} path */
-const normalized = (path) =>
-  (path || "").replace(/\\/g, "/").replace(/\/+$/, "");
+import { normalizedPath } from "./session.js";
 
 /** @param {import("./contracts.js").Config} active @param {import("herdr").SpaceInfo[]} allSpaces @param {import("herdr").PaneInfo[]} allPanes */
 export function jumpTarget(active, allSpaces, allPanes) {
@@ -17,7 +15,7 @@ export function jumpTarget(active, allSpaces, allPanes) {
     (p) =>
       tabs.has(p.tab) &&
       p.cwd &&
-      normalized(p.cwd) === normalized(active.folder),
+      normalizedPath(p.cwd) === normalizedPath(active.folder),
   );
   return { pane, space: candidates[0] };
 }

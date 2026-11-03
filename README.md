@@ -26,14 +26,18 @@ The repository uses Herdr's community mod format: `mods/latex/`, `RECIPE.md` and
 provided toolbar component with live context forwarding. A personal layout is not
 bundled, so installation can fit your existing layout.
 
-For the activity indicator, copy `mods/latex/toolbar-button.js` into your personal
-toolbar mod as `latex-button.js`. Copy `model.js` there as `latex-model.js`,
-change the button’s import to `"./latex-model.js"`, copy `contracts.d.ts` for editor
-typing, import the button’s default View, and mount it using
-`cx.new()` in the toolbar's `init` method. Render the returned entity as a child.
-The component handles opening the panel, scoped green styling, the play symbol and
-the active-session chooser. Forward `latexButtonContext()` from the parent toolbar
-when its live context changes; see [RECIPE.md](RECIPE.md) for an integration example.
+For the activity indicator, copy the toolbar bundle into your personal toolbar
+mod, preserving its internal imports:
+
+```sh
+just toolbar-bundle ~/.config/herdr-app/mods/my-toolbar/latex
+```
+
+Import `LatexToolbarButton` and `latexButtonContext` from
+`./latex/toolbar-button.js`, mount the View with `cx.new()` in the toolbar's
+`init`, and render the returned entity. Forward `latexButtonContext()` when the
+parent's live context changes. See [RECIPE.md](RECIPE.md) for the full example.
+The bundle command copies files; it does not edit your layout or toolbar View.
 
 For a manual install, copy `mods/latex` into `~/.config/herdr-app/mods/latex` without
 overwriting an existing mod. Then run:
@@ -151,7 +155,30 @@ transfers, incomplete replacement recovery, real compilation, background workers
 upgrades, and cancellation. Herdr's native check and a visual smoke test are still
 needed after UI changes because mocks do not lay out GPUI elements.
 
-`helper.py` supervises local work; `remote.py` is the typed standalone script sent
-to the selected machine using Herdr's connection. Always deploy both files.
-`model.js` validates shared/frontend data; the panel and toolbar both import it.
-The small monochrome SVG icons live in `mods/latex/icons/`.
+The source is grouped by responsibility:
+
+```text
+mods/latex/
+  main.js             panel state, commands, discovery and preview lifecycle
+  session.js          current folder, identity and saved project preferences
+  helper-client.js    helper requests and status-file reads
+  model.js            runtime JSON validation and shared state access
+  contracts.d.ts      domain types shared by frontend modules
+  toolbar-button.js   activity indicator and opening the panel
+  session-picker.js   open-here / go-to-preview navigation
+  ui/                 panel shell, controls, documents, settings, activity, footer
+  helper.py           local supervisor, cancellation and PDF transfer
+  remote.py           standalone script sent over the Herdr connection
+  tests/              Python and frontend regression tests
+```
+
+Rendering functions in `ui/` receive the panel controller; they use its actions
+rather than owning a second copy of session or worker state. They create native
+GPUI elements, so there is still no build step or web view.
+
+Keep the whole runtime tree when installing, including `ui/` and both Python
+files. `remote.py` stays self-contained because the remote machine receives its
+source as a single script; splitting it would require remote dependency deployment.
+The SVG icons live in `mods/latex/icons/`. `scripts/toolbar_bundle.py` copies the
+launcher's shared modules together without rewriting imports. After changing
+those modules, regenerate the installed toolbar bundle too.

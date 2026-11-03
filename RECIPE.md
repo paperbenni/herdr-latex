@@ -92,7 +92,9 @@ panel does not draw an agent list or animate those states.
 Install only `mods/latex/` from this repository. It contains a GPUI `View` in
 `main.js`, standard-library Python helpers in `helper.py` and `remote.py`, and
 a `mod.json` with `place: none`, keyboard focus opt-in and 620×660 overlay dimensions, usage notes,
-and regression tests. `model.js` validates frontend/shared data and
+and regression tests. The `ui/` directory contains section renderers; `main.js`
+owns the panel state and actions. `session.js` shares context resolution with the
+toolbar, and `helper-client.js` owns helper requests. `model.js` validates frontend/shared data and
 `contracts.d.ts` describes its domain types. Small monochrome SVG icons live under
 `icons/` and are rendered using GPUI's tinted `svg()` builder. Do not install generated typings,
 bytecode or `.runtime`.
@@ -113,15 +115,20 @@ per configuration uses an exclusive file lock, a JSON request queue, atomically
 written status, and an upgrade marker so idle workers can load new helper code.
 Viewer launch uses `xdg-open` on Linux or `open` on macOS.
 
-For a visible **LaTeX** button with an activity indicator, copy
-`mods/latex/toolbar-button.js` into the person's cloned/personal toolbar mod as
-`latex-button.js`. Also copy `model.js` as `latex-model.js` into that toolbar
-mod and change the button's import from `"./model.js"` to `"./latex-model.js"`.
-Copy `contracts.d.ts` there for editor typing (runtime does not load it).
+For a visible **LaTeX** button with an activity indicator, create a bundle in the
+person's cloned/personal toolbar mod:
+
+```sh
+just toolbar-bundle ~/.config/herdr-app/mods/my-toolbar/latex
+```
+
+Without development tools, copy `toolbar-button.js`, `session.js`,
+`helper-client.js`, `model.js` and `contracts.d.ts` from `mods/latex/` into a
+`latex/` subfolder of that toolbar mod. Keep these filenames and imports intact.
 Then integrate its native View:
 
 ```js
-import LatexToolbarButton, { latexButtonContext } from "./latex-button.js";
+import LatexToolbarButton, { latexButtonContext } from "./latex/toolbar-button.js";
 
 // In the toolbar View's init method:
 const context = latexButtonContext();
@@ -160,7 +167,10 @@ current folder preserves focus and does not stop the background preview. Startin
 a new build/preview explicitly replaces the previous managed activity.
 `mod.open` toggles the overlay. There is no bundled
 layout or keybinding to replace the person's setup. Include the mod's SVG icons
-when copying it.
+when copying it, along with the `ui/` directory and all runtime JavaScript modules.
+Regenerate the toolbar bundle after updating shared modules. For older installs
+that imported a renamed `latex-button.js`, update the parent import to
+`./latex/toolbar-button.js` and remove the old copied launcher/model files.
 
 ## Watch out
 

@@ -1,26 +1,10 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import {
-  appHome,
-  closeOverlay,
-  exec,
-  focused,
-  home,
-  layout,
-  openOverlay,
-  panes,
-  readTextFile,
-  run,
-  shared,
-  spaces,
-} from "herdr";
-import {
-  activeSession,
-  readStatus,
-  readStatusReply,
-  palette,
-  isRecord,
-} from "./model.js";
+import { closeOverlay, layout, openOverlay, run, shared } from "herdr";
+import { activeSession, palette, isRecord } from "./model.js";
+import { currentSource, isActive, sameFolder } from "./session.js";
+import { queryStatus, readStatusFile } from "./helper-client.js";
+export { isActive, sameFolder } from "./session.js";
 
 /** @param {unknown} node @param {string} id @returns {{size: {px: number}} | null} */
 function find(node, id) {
@@ -43,48 +27,11 @@ function find(node, id) {
   return null;
 }
 
-/** @param {import("./contracts.js").Status | undefined} status @param {number} [now] */
-export function isActive(status, now = Date.now() / 1000) {
-  return Boolean(
-    status?.pid &&
-    status.heartbeat &&
-    now - status.heartbeat < 180 &&
-    (status.building || status.watching),
-  );
-}
-
-/** @param {import("./contracts.js").Source | null | undefined} current @param {import("./contracts.js").Source | null | undefined} active */
-export function sameFolder(current, active) {
-  /** @param {string | undefined} value */
-  const path = (value) => (value || "").replace(/\\/g, "/").replace(/\/+$/, "");
-  return Boolean(
-    current &&
-    active &&
-    (current.machine || "") === (active.machine || "") &&
-    path(current.folder) === path(active.folder),
-  );
-}
-
-/** @returns {import("./contracts.js").Source} */
-function currentFolder() {
-  const f = focused();
-  const space = spaces().find((s) => s.id === f?.space);
-  const machine = space?.machine || "";
-  const tab =
-    space?.tabs.find((t) => t.id === f?.tab) ||
-    space?.tabs.find((t) => t.active);
-  const live = panes().find((p) => p.tab === tab?.id && p.cwd);
-  return {
-    machine,
-    folder: f?.cwd || live?.cwd || space?.folder || (machine ? "~" : home()),
-  };
-}
-
 // Call from the parent toolbar render so Herdr subscribes it to context changes.
 /** @returns {import("./contracts.js").ToolbarContext} */
 export function latexButtonContext() {
   return {
-    current: currentFolder(),
+    current: currentSource(),
     session: activeSession(),
     compact: (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160,
   };
@@ -122,20 +69,10 @@ export default class LatexToolbarButton extends View {
         /** @type {import("./contracts.js").Status} */
         let status = {};
         if (typeof file === "string") {
-          const content = await readTextFile(file);
-          status = content ? readStatus(JSON.parse(content)) : {};
+          status = await readStatusFile(file);
         } else {
           const config = activeSession();
-          if (config) {
-            const r = await exec("python3", [
-              `${appHome()}/mods/latex/helper.py`,
-              "status",
-              "--config",
-              JSON.stringify(config),
-            ]);
-            if (r.code === 0)
-              status = readStatusReply(JSON.parse(r.stdout)).status;
-          }
+          if (config) status = (await queryStatus(config)).status;
         }
         const active = isActive(status);
         const building = Boolean(status.building);
@@ -161,7 +98,7 @@ export default class LatexToolbarButton extends View {
   }
 
   open() {
-    const current = currentFolder();
+    const current = currentSource();
     const active = activeSession();
     if (this.active && active && !sameFolder(current, active)) {
       closeOverlay("latex");

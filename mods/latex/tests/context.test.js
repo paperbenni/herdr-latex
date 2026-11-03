@@ -116,3 +116,36 @@ test("an unrelated preview does not turn the current folder's primary action int
   );
   assert.equal(textContent(tree).includes("Live preview"), false);
 });
+
+test("choosing a document clears the PDF override, saves it, and collapses the picker", async () => {
+  const p = await panel();
+  p.view.choosing = true;
+  p.view.inputs.pdf.set_value("old.pdf");
+  p.view.files = {
+    ...mock.discovery,
+    files: [{ path: "slides/slides.tex", main: true }],
+  };
+  const row = findElement(p.view.render(p.cx), "tex-slides/slides.tex");
+  assert.ok(row?.click);
+  row.click({}, p.cx);
+  assert.equal(p.view.config().tex, "slides/slides.tex");
+  assert.equal(p.view.config().pdf, "");
+  assert.equal(p.view.choosing, false);
+  assert.ok(
+    JSON.stringify(mock.shared["latex.folder-projects"]).includes(
+      "slides/slides.tex",
+    ),
+  );
+});
+
+test("build settings update the saved engine through the native controls", async () => {
+  const p = await panel();
+  p.view.advanced = true;
+  const choice = findElement(p.view.render(p.cx), "engine-xelatex");
+  assert.ok(choice?.click);
+  choice.click({}, p.cx);
+  assert.equal(p.view.config().engine, "xelatex");
+  assert.ok(
+    JSON.stringify(mock.shared["latex.folder-projects"]).includes("xelatex"),
+  );
+});

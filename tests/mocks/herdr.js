@@ -77,6 +77,8 @@ export function pane(overrides = {}) {
 }
 
 export const mock = {
+  /** @type {import("herdr").ExecResult | undefined} */ execResult: undefined,
+  /** @type {string | undefined} */ fileContent: undefined,
   /** @type {Record<string, unknown>} */ shared: {},
   /** @type {Record<string, unknown>} */ props: {},
   /** @type {Focus} */ focus: {
@@ -110,6 +112,8 @@ export const mock = {
 };
 
 export function reset() {
+  mock.execResult = undefined;
+  mock.fileContent = undefined;
   mock.shared = {};
   mock.props = {};
   mock.calls = [];
@@ -194,10 +198,12 @@ export function nextCommand() {
 }
 /** @param {string} _path @returns {Promise<string>} */
 export async function readTextFile(_path) {
-  return JSON.stringify(mock.status);
+  return mock.fileContent ?? JSON.stringify(mock.status);
 }
 /** @param {string} _command @param {string[]} args @returns {Promise<import("herdr").ExecResult>} */
 export async function exec(_command, args) {
+  mock.calls.push({ name: "exec", args });
+  if (mock.execResult) return mock.execResult;
   const action = args[1];
   const result =
     action === "status"
@@ -205,6 +211,5 @@ export async function exec(_command, args) {
       : action === "discover"
         ? mock.discovery
         : { directory: "/state", status_file: "/state/status.json" };
-  mock.calls.push({ name: "exec", args });
   return { code: 0, stdout: JSON.stringify(result), stderr: "" };
 }
