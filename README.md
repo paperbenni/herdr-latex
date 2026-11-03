@@ -49,6 +49,11 @@ The panel follows the active session's machine and live working directory. Use
 Herdr's existing navigation or `cd` to change projects. Document and engine
 preferences are remembered per machine and folder.
 
+Discovery is paused in home directories, their ancestors and common system or
+temporary roots. The panel asks you to navigate to a project directory instead
+of searching through unrelated files. Project subfolders still work normally;
+you can also enter an explicit file path without scanning.
+
 The toolbar button turns **green with ▶** while a build or preview update session
 is active. It keeps showing activity when the panel is closed. When the helper
 stops updating, or polling stops and no build is running, the button returns to

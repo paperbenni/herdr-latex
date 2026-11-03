@@ -117,6 +117,43 @@ class PreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Project folder does not exist'):
             helper.query({**self.cfg, 'folder': str(self.root / 'missing')}, 'discover')
 
+    def test_home_and_its_ancestors_are_never_scanned_even_with_a_filter(self):
+        (self.project / 'main.tex').write_text(r'\documentclass{article}')
+        # Fail if discovery tries to enumerate files or invoke Git at all.
+        guard = 'import os,subprocess; fail=lambda *a,**k: (_ for _ in ()).throw(AssertionError("Unexpected search")); os.scandir=fail; subprocess.run=fail;\n'
+        with patch.dict(os.environ, {'HOME': str(self.project)}):
+            for folder in [str(self.project), '~', str(self.root), '/']:
+                cfg = {**self.cfg, 'folder': folder, 'search': 'main'}
+                r = subprocess.run(['python3', '-c', guard + helper.REMOTE, 'discover', json.dumps(cfg)], capture_output=True, text=True, check=True)
+                result = json.loads(r.stdout)
+                self.assertEqual(result['skipped'], 'broad-folder')
+                self.assertEqual(result['files'], [])
+                self.assertEqual(result['directories'], 0)
+
+    def test_home_aliases_and_system_roots_are_skipped(self):
+        alias = self.root / 'home-alias'
+        alias.symlink_to(self.project, target_is_directory=True)
+        with patch.dict(os.environ, {'HOME': str(self.project)}):
+            self.assertEqual(helper.query({**self.cfg, 'folder': str(alias)}, 'discover')['skipped'], 'broad-folder')
+        self.assertEqual(helper.query({**self.cfg, 'folder': '/tmp'}, 'discover')['skipped'], 'broad-folder')
+
+    def test_project_subfolders_of_home_are_still_searched(self):
+        (self.project / 'main.tex').write_text(r'\documentclass{article}')
+        with patch.dict(os.environ, {'HOME': str(self.root)}):
+            result = helper.query(self.cfg, 'discover')
+        self.assertEqual(result['files'], [{'path': 'main.tex', 'main': True}])
+        self.assertNotIn('skipped', result)
+
+    def test_project_symlink_to_home_does_not_expand_the_home_tree(self):
+        outside = self.root / 'user-home'
+        outside.mkdir()
+        (outside / 'unrelated.tex').write_text(r'\documentclass{article}')
+        (self.project / 'whole-home').symlink_to(outside, target_is_directory=True)
+        (self.project / 'main.tex').write_text(r'\documentclass{article}')
+        with patch.dict(os.environ, {'HOME': str(outside)}):
+            result = helper.query(self.cfg, 'discover')
+        self.assertEqual(result['files'], [{'path': 'main.tex', 'main': True}])
+
     def test_all_remote_actions_reuse_herdr_without_shell_expansion(self):
         self.cfg['machine'] = 'example'
         self.cfg['folder'] = "/tmp/paper's $(touch NEVER); folder"

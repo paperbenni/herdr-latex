@@ -15,6 +15,10 @@ Switch sessions or `cd` in the terminal to change folders. The current machine
 and folder appear as a read-only label; there is no separate project selector.
 Main document, engine and PDF output preferences are remembered per machine and
 folder. The folder is searched automatically on opening and after context changes.
+Home directories, their ancestors and common system/temporary roots are excluded
+from discovery. Navigate to a project directory in Herdr instead. Explicit file
+paths can still be entered without scanning; broad folders aren't searched even
+with a filename filter or a Git repository present.
 Click the document card to choose another file. Engine and PDF output options are
 under **Build settings**. Icon controls have hover labels; build logs stay
 collapsed until requested or a build fails.

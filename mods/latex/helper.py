@@ -35,6 +35,22 @@ def stamp():
     return [s.st_mtime_ns, s.st_size, s.st_ino]
 if action == 'discover':
     if not folder.is_dir(): sys.exit('Project folder does not exist: ' + str(folder))
+    user_home = pathlib.Path.home().resolve()
+    broad = {user_home, *user_home.parents}
+    broad.update(pathlib.Path(p) for p in ('/home', '/Users', '/root', '/tmp', '/var', '/var/tmp', '/usr', '/etc', '/opt', '/srv', '/mnt', '/media', '/Volumes', '/vol'))
+    broad_ids = set()
+    for path in broad:
+        try:
+            s = path.stat()
+            broad_ids.add((s.st_dev, s.st_ino))
+        except OSError: pass
+    root_info = folder.stat()
+    if folder in broad or (root_info.st_dev, root_info.st_ino) in broad_ids:
+        print(json.dumps({'files': [], 'folder': str(folder), 'truncated': False, 'reason': '',
+                          'directories': 0, 'errors': [], 'search': cfg.get('search', ''),
+                          'method': 'skipped', 'skipped': 'broad-folder',
+                          'message': 'Open a project folder in Herdr to find TeX documents.'}))
+        sys.exit(0)
     result, seen, errors = [], set(), []
     pending = collections.deque([folder])
     started = time.monotonic()
@@ -75,6 +91,7 @@ if action == 'discover':
         try:
             info = parent.stat()
             identity = (info.st_dev, info.st_ino)
+            if identity in broad_ids: continue
             if identity in seen: continue
             seen.add(identity)
             with os.scandir(parent) as entries: entries = sorted(entries, key=lambda e: e.name.casefold())

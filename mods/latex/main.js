@@ -170,6 +170,7 @@ export default class Latex extends View {
         const result = await this.helper("discover", config, search);
         if (generation !== this.generation || sourceKey(config) !== sourceKey(this.config())) return;
         this.files = result;
+        if (result.skipped) this.choosing = true;
         const mains = result.files.filter(f => f.main);
         if (!this.inputs.tex.value() && mains.length === 1 && !result.truncated) {
           this.inputs.tex.set_value(mains[0].path);
@@ -231,7 +232,7 @@ export default class Latex extends View {
         .when(Boolean(this.error), el => el.child(h_flex().mt(15).p(11).gap(8).rounded(8).bg(t.background).text_color(t.blocked).child(icon("alert")).child(div().flex_1().child(this.error))))
         .child(h_flex().mt(24).mb(9).items_center().justify_between()
           .child(div().text_size(13).font_semibold().child("Document"))
-          .child(iconButton("latex-find", "refresh", this.finding ? "Searching for documents…" : "Rescan current folder", cx => this.discover(cx), this.finding)))
+          .child(iconButton("latex-find", "refresh", this.files?.skipped ? "Navigate to a project folder to find documents" : this.finding ? "Searching for documents…" : "Rescan current folder", cx => this.discover(cx), this.finding || Boolean(this.files?.skipped))))
         .child(h_flex().id("latex-document-picker").p(13).gap(11).items_center().rounded(10).bg(t.background).border(1).border_color(choosing ? t.input : t.border).cursor_pointer().hover(s => s.border_color(t.accent))
           .on_click((_e, cx) => { this.choosing = !choosing; cx.notify(); })
           .child(div().text_color(config.tex ? t.accent : t.dim).child(icon("document", 22)))
@@ -245,7 +246,9 @@ export default class Latex extends View {
             .child(div().flex_1().min_w(0).child(input("search")))
             .child(iconButton("latex-search", "search", "Search filenames in the current folder", cx => this.discover(cx), this.finding))))
           .when(Boolean(this.files), el => el.child(v_flex().id("latex-files").max_h(210).overflow_y_scrollbar().gap(2)
-            .when(visible.length === 0 && !this.finding, el => el.child(div().p(10).text_color(t.muted).child(needle ? "No matching documents. Try another search." : "No TeX files in this folder.")))
+            .when(visible.length === 0 && !this.finding, el => el.child(v_flex().p(10).gap(5).text_color(t.muted)
+              .child(div().child(this.files.skipped ? "Open a project folder" : needle ? "No matching documents. Try another search." : "No TeX files in this folder."))
+              .when(Boolean(this.files.skipped), el => el.child(div().text_size(11).text_color(t.dim).child("Navigate with Herdr or cd in the terminal. Home and system folders aren't searched.")))))
             .children(visible.map(file => h_flex().id(`tex-${file.path}`).px(11).py(10).gap(10).rounded(7).cursor_pointer().bg(file.path === config.tex ? t.selected : t.surface).hover(s => s.bg(t.hover))
               .child(div().text_color(file.path === config.tex ? t.accent : t.dim).child(icon("document", 16)))
               .child(v_flex().flex_1().min_w(0).gap(2)

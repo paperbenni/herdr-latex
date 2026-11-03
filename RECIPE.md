@@ -43,6 +43,15 @@ search. Prefer the focused terminal's live cwd; fall back to a live pane in the
 active tab, then the space folder. Do not take the first terminal in the space:
 different tabs may be in different repositories.
 
+Before enumerating anything or invoking Git, skip the machine's actual home
+directory, its ancestors and common system/temporary roots. Resolve symlinks and
+compare filesystem identities to catch aliases. Return a normal skipped response
+with zero visited directories; show an **Open a project folder** empty state,
+disable rescan there, and keep manual file-path entry available. Filename filters
+and home-directory Git repositories must not bypass this guard. Exclude links
+back to these broad directories when traversing a project as well. A project
+subfolder inside home is still eligible for normal discovery.
+
 Remember document, engine and PDF output per machine and folder. Automatically
 select a main document if exactly one is found. Clicking a file selects it without
 hiding the other results. Typing filters loaded results immediately; Search or
