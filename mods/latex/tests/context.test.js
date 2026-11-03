@@ -149,3 +149,23 @@ test("build settings update the saved engine through the native controls", async
     JSON.stringify(mock.shared["latex.folder-projects"]).includes("xelatex"),
   );
 });
+
+test("a successful retry clears the transient preview error in the panel", async () => {
+  const p = await panel();
+  p.view.active = p.view.config();
+  mock.status = {
+    watching: true,
+    error: "PDF is still being written",
+    pid: 1,
+    heartbeat: Date.now() / 1000,
+  };
+  p.view.poll(p.cx);
+  await p.flush();
+  assert.match(textContent(p.view.render(p.cx)), /Reconnecting preview/);
+  mock.status = { ...mock.status, error: "", updated: Date.now() / 1000 };
+  p.view.poll(p.cx);
+  await p.flush();
+  const rendered = textContent(p.view.render(p.cx));
+  assert.match(rendered, /Live preview/);
+  assert.equal(rendered.includes("still being written"), false);
+});
