@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shlex
 import shutil
 import signal
 import subprocess
@@ -18,11 +17,12 @@ import uuid
 ROOT = Path(__file__).resolve().parent / '.runtime'
 INTERVAL = 3
 MAX_PDF = 250 * 1024 * 1024
+CHUNK_SIZE = 4 * 1024 * 1024  # hc exec allows at most 8 MiB stdout per request.
 VERSION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16]
 
 # Runs on the selected machine. Paths are data, never interpolated into shell code.
 REMOTE = r'''
-import collections, json, os, pathlib, re, shutil, subprocess, sys, time
+import collections, itertools, json, os, pathlib, re, shutil, subprocess, sys, time
 action, cfg = sys.argv[1], json.loads(sys.argv[2])
 folder = pathlib.Path(cfg['folder']).expanduser().resolve()
 tex = pathlib.Path(cfg.get('tex') or 'main.tex').expanduser()
@@ -40,8 +40,35 @@ if action == 'discover':
     started = time.monotonic()
     reason = ''
     needle = cfg.get('search', '').casefold()
+    git_files = None
+    if shutil.which('git'):
+        try:
+            probe = subprocess.run(['git', '-C', str(folder), 'rev-parse', '--is-inside-work-tree'], capture_output=True, timeout=1)
+            if probe.returncode == 0 and probe.stdout.strip() == b'true':
+                patterns = ['*.' + ''.join(ext) for ext in itertools.product('tT', 'eE', 'xX')]
+                found = subprocess.run(['git', '-C', str(folder), 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', *patterns], capture_output=True, timeout=2)
+                if found.returncode == 0:
+                    git_files = [folder / os.fsdecode(p) for p in found.stdout.split(b'\0') if p]
+        except subprocess.TimeoutExpired:
+            pass
+    def add_file(path):
+        relative = str(path.relative_to(folder))
+        if needle and needle not in relative.casefold(): return
+        try:
+            with path.open(errors='replace') as f: head = f.read(16384)
+            main = bool(re.search(r'(?m)^[ \t]*\\documentclass\b', head))
+        except OSError as e:
+            errors.append(str(e)); return
+        result.append({'path': relative, 'main': main})
+    if git_files is not None:
+        pending.clear()
+        for path in git_files:
+            if time.monotonic() - started > 3 or len(result) >= 2000:
+                reason = 'Search is partial. Enter a filename filter, or cd into a narrower folder in Herdr.'
+                break
+            add_file(path)
     while pending:
-        if len(seen) >= 10000 or time.monotonic() - started > 8:
+        if len(seen) >= 10000 or time.monotonic() - started > 2:
             reason = 'Search reached its directory or time limit. Enter a filename filter, or cd into a narrower folder in Herdr.'
             break
         parent = pending.popleft()
@@ -54,20 +81,16 @@ if action == 'discover':
         except OSError as e:
             errors.append(str(e)); continue
         for entry in entries:
+            if time.monotonic() - started > 2:
+                reason = 'Search is partial. Enter a filename filter, or cd into a narrower folder in Herdr.'
+                break
             try:
                 path = pathlib.Path(entry.path)
                 if entry.is_dir():
-                    if not entry.name.startswith('.') and entry.name not in ('node_modules', 'venv', '__pycache__'):
+                    if not entry.name.startswith('.') and entry.name not in ('node_modules', 'venv', '__pycache__', 'build', '_build', 'dist'):
                         pending.append(path)
                 elif entry.name.lower().endswith('.tex') and entry.is_file():
-                    relative = str(path.relative_to(folder))
-                    if needle and needle not in relative.casefold(): continue
-                    try:
-                        with path.open(errors='replace') as f: head = f.read(65536)
-                        main = bool(re.search(r'(?m)^[ \t]*\\documentclass\b', head))
-                    except OSError as e:
-                        errors.append(str(e)); main = False
-                    result.append({'path': relative, 'main': main})
+                    add_file(path)
                     if len(result) >= 2000:
                         reason = 'Showing the first 2,000 matching TeX files. Enter a filename filter, or cd into a narrower folder in Herdr.'
                         break
@@ -75,7 +98,8 @@ if action == 'discover':
         if reason: break
     result.sort(key=lambda f: (not f['main'], f['path'].casefold()))
     print(json.dumps({'files': result, 'folder': str(folder), 'truncated': bool(reason), 'reason': reason,
-                      'directories': len(seen), 'errors': errors[:5], 'search': cfg.get('search', '')}))
+                      'directories': len(seen), 'errors': errors[:5], 'search': cfg.get('search', ''),
+                      'method': 'git' if git_files is not None else 'walk'}))
 elif action == 'compile':
     if not tex.is_file(): sys.exit('Main TeX file does not exist: ' + str(tex))
     if not shutil.which('latexmk'): sys.exit('latexmk is not installed or is not on PATH on this machine.')
@@ -86,15 +110,20 @@ elif action == 'stat':
 elif action == 'download':
     before = stamp()
     if before[1] > 250 * 1024 * 1024: sys.exit('PDF exceeds the 250 MiB preview limit.')
+    if cfg.get('expected_stamp') is not None and before != cfg['expected_stamp']:
+        sys.exit('PDF changed while fetching it; retrying shortly.')
+    offset = int(cfg.get('offset', 0))
+    length = int(cfg.get('length', 4 * 1024 * 1024))
+    if offset < 0 or not 0 < length <= 4 * 1024 * 1024: sys.exit('Invalid PDF chunk range.')
     # Avoid reading while the compiler is still writing the file.
-    time.sleep(0.65)
+    if offset == 0: time.sleep(0.65)
     if stamp() != before: sys.exit('PDF is still being written; retrying on the next check.')
     with pdf.open('rb') as f:
         if f.read(5) != b'%PDF-': sys.exit('The output is not a PDF yet.')
         f.seek(max(0, before[1] - 2048))
         if b'%%EOF' not in f.read(): sys.exit('PDF is incomplete; waiting for the compiler to finish.')
-        f.seek(0)
-        shutil.copyfileobj(f, sys.stdout.buffer)
+        f.seek(offset)
+        sys.stdout.buffer.write(f.read(length))
     sys.stdout.buffer.flush()
     if stamp() != before: sys.exit('PDF changed during download; keeping the previous preview.')
 '''
@@ -131,36 +160,17 @@ def session(c):
     return d
 
 
-def endpoint(c):
-    if not c['machine']:
-        return None
-    r = subprocess.run(['hc', 'machine', 'ls', '--json'], capture_output=True, text=True, timeout=15)
-    if r.returncode:
-        raise RuntimeError(r.stderr.strip() or 'Could not list Herdr machines.')
-    for m in json.loads(r.stdout)['machines']:
-        if m['name'] == c['machine']:
-            target = m.get('target')
-            if not target or target.startswith('-'):
-                raise RuntimeError('This Herdr machine has no usable SSH target.')
-            return target
-    raise RuntimeError('Herdr machine no longer exists: ' + c['machine'])
-
-
-def command(c, action, target=None):
+def command(c, action):
     args = ['python3', '-c', REMOTE, action, json.dumps(c)]
     if not c['machine']:
         return args
-    if action == 'compile':
-        # Core uses the remote environment and bounds the whole build process tree.
-        return ['hc', 'exec', '--on', c['machine'], '--timeout', '600', '--', *args]
-    return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-            '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=2',
-            target or endpoint(c), shlex.join(args)]
+    timeout = 600 if action == 'compile' else 8 if action == 'discover' else 30
+    return ['hc', 'exec', '--on', c['machine'], '--timeout', str(timeout), '--', *args]
 
 
-def query(c, action, target=None):
+def query(c, action):
     try:
-        r = subprocess.run(command(c, action, target), capture_output=True, text=True, timeout=25)
+        r = subprocess.run(command(c, action), capture_output=True, text=True, timeout=12 if action == 'discover' else 35)
     except subprocess.TimeoutExpired:
         raise RuntimeError('The machine did not respond in time. Check its connection and try again.') from None
     if r.returncode:
@@ -180,23 +190,34 @@ def preview_dir(d):
     return p
 
 
-def refresh(c, d, state, target, force=False):
-    meta = query(c, 'stat', target)
+def refresh(c, d, state, force=False):
+    meta = query(c, 'stat')
     dest = Path(state['preview_path'])
     if not force and meta['stamp'] == state.get('stamp') and dest.is_file():
         return
     partial = dest.with_suffix('.pdf.part')
+    size = meta['stamp'][1]
+    if not 8 <= size <= MAX_PDF:
+        raise RuntimeError('The PDF is empty or exceeds the 250 MiB preview limit.')
     try:
         with partial.open('wb') as out:
-            try:
-                r = subprocess.run(command(c, 'download', target), stdout=out, stderr=subprocess.PIPE, timeout=90)
-            except subprocess.TimeoutExpired:
-                raise RuntimeError('PDF download timed out. Keeping the previous local PDF and retrying shortly.') from None
-        if r.returncode:
-            raise RuntimeError(r.stderr.decode(errors='replace').strip()[-1800:] or 'PDF download failed.')
+            for offset in range(0, size, CHUNK_SIZE):
+                length = min(CHUNK_SIZE, size - offset)
+                request = {**c, 'offset': offset, 'length': length, 'expected_stamp': meta['stamp']}
+                try:
+                    r = subprocess.run(command(request, 'download'), stdout=out, stderr=subprocess.PIPE, timeout=35)
+                except subprocess.TimeoutExpired:
+                    raise RuntimeError('Herdr PDF transfer timed out. Keeping the previous local PDF and retrying shortly.') from None
+                if r.returncode:
+                    raise RuntimeError(r.stderr.decode(errors='replace').strip()[-1800:] or 'Herdr PDF transfer failed.')
+                if out.tell() != offset + length:
+                    raise RuntimeError('Herdr returned an incomplete PDF chunk. Keeping the previous local PDF.')
+                # Large transfers may span many requests; keep activity reporting live.
+                state['heartbeat'] = time.time()
+                atomic_json(d / 'status.json', state)
         if partial.stat().st_size > MAX_PDF or partial.stat().st_size < 8:
             raise RuntimeError('The downloaded PDF is empty or too large.')
-        after = query(c, 'stat', target)
+        after = query(c, 'stat')
         if after['stamp'] != meta['stamp']:
             raise RuntimeError('PDF changed while fetching it; retrying shortly.')
         os.replace(partial, dest)
@@ -234,7 +255,6 @@ def worker(d):
     viewer = None
     last_request = time.monotonic()
     next_check = 0
-    target = None
     auto_open = False
     try:
         while True:
@@ -292,9 +312,7 @@ def worker(d):
                 viewer = None
             if state['watching'] and not build and now >= next_check:
                 try:
-                    if c['machine'] and target is None:
-                        target = endpoint(c)
-                    refresh(c, d, state, target)
+                    refresh(c, d, state)
                     state['error'] = ''
                     state['phase'] = 'Preview up to date · checking every 3 seconds'
                     if auto_open:
@@ -302,7 +320,6 @@ def worker(d):
                         auto_open = False
                 except Exception as e:
                     state.update(error=str(e), phase='Waiting for PDF · retrying automatically')
-                    target = None
                 next_check = time.monotonic() + INTERVAL
             state['heartbeat'] = time.time()
             atomic_json(d / 'status.json', state)

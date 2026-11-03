@@ -83,9 +83,12 @@ Herdr APIs used include `focused`, `spaces`, `panes`, `shared`/`setShared`,
 changes cause renders; defer input changes out of render rather than polling
 Herdr's live model. A two-second timer reads helper status, not session data.
 
-The Python CLI resolves remote SSH targets using `hc machine ls --json`.
-Compilation uses `hc exec --on ... --timeout 600`; scans and downloads use SSH
-with batch authentication. Local work uses Python subprocesses directly. A worker
+The Python CLI uses `hc exec --on` for every remote operation over Herdr's existing
+machine connection. Compilation has a 600-second limit; discovery has an
+eight-second core timeout around its shorter internal scan budget. PDF downloads
+use exact binary chunks of at most 4 MiB, below the core's 8 MiB stdout limit;
+validate every chunk length and upstream file metadata before replacing the local
+file. Local work uses Python subprocesses directly. A worker
 per configuration uses an exclusive file lock, a JSON request queue, atomically
 written status, and an upgrade marker so idle workers can load new helper code.
 Viewer launch uses `xdg-open` on Linux or `open` on macOS.
@@ -120,20 +123,22 @@ when copying it.
 
 ## Watch out
 
-- This code runs programs, reads project files and uses the network through SSH.
+- This code runs programs, reads project files and uses Herdr's remote connection.
   Tell the person before installing, as Herdr's mod guide requires.
 - Unix hosts only. Local Python uses `fcntl`; Windows is unsupported. macOS's
   launcher is implemented but has not been tested.
 - Herdr 0.1.12 is the tested API version. Read the installed type declarations if
   native builders differ on another version.
 - The machine needs Python 3, `latexmk` and the chosen engine on its PATH. The
-  local desktop also needs Python 3, `hc`, SSH, an OS opener and a PDF viewer.
-- A remote Herdr connection does not replace SSH credentials or a working SFTP/
-  shell SSH target. Downloads use normal SSH configuration, known hosts and agent.
-- Search has no depth limit and guards against symlink cycles. It excludes hidden
-  directories and common dependency/cache folders, and explicitly reports limits
-  of 2,000 matches, 10,000 visited directories or eight seconds. Filtering is a new
-  remote search, not just a search of the truncated prefix.
+  local desktop also needs Python 3, `hc`, an OS opener and a PDF viewer.
+- Reuse Herdr's configured connection; do not resolve an SSH target or launch a
+  separate SSH connection. The mod must work without SSH-agent environment variables.
+- Git discovery includes tracked and untracked TeX files and respects ignored
+  paths. Git is optional. Outside Git, Python scans have no depth limit, guard
+  against symlink cycles, and skip hidden, cache, dependency and build directories.
+  Report limits of 2,000 matches, 10,000 directories, two seconds for fallback
+  traversal or up to three seconds for Git discovery. Filtering starts a new remote
+  search and is not restricted to a truncated result prefix.
 - The optional PDF override changes the downloaded file, not compiler flags.
   Relative PDF overrides are relative to the current working directory; the
   default is next to the selected TeX file.

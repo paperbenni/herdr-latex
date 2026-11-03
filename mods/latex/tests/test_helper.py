@@ -55,8 +55,9 @@ class PreviewTests(unittest.TestCase):
     def test_remote_changes_during_transfer_preserve_preview(self):
         helper.refresh(self.cfg, self.root, self.state, None)
         original = self.dest.read_bytes()
-        meta = {'stamp': [1, 100, 2], 'path': str(self.pdf)}
-        after = {'stamp': [2, 100, 2], 'path': str(self.pdf)}
+        self.pdf.write_bytes(b'%PDF-1.4\nchanged upstream content\n%%EOF\n')
+        meta = helper.query(self.cfg, 'stat')
+        after = {**meta, 'stamp': [meta['stamp'][0] + 1, *meta['stamp'][1:]]}
         with patch.object(helper, 'query', side_effect=[meta, after]):
             with self.assertRaisesRegex(RuntimeError, 'changed while fetching'):
                 helper.refresh(self.cfg, self.root, self.state, None)
@@ -116,14 +117,55 @@ class PreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Project folder does not exist'):
             helper.query({**self.cfg, 'folder': str(self.root / 'missing')}, 'discover')
 
-    def test_ssh_arguments_round_trip_without_shell_expansion(self):
+    def test_all_remote_actions_reuse_herdr_without_shell_expansion(self):
         self.cfg['machine'] = 'example'
         self.cfg['folder'] = "/tmp/paper's $(touch NEVER); folder"
-        cmd = helper.command(self.cfg, 'stat', target='example-ssh-alias')
-        import shlex
-        remote = shlex.split(cmd[-1])
-        self.assertEqual(json.loads(remote[-1]), self.cfg)
-        self.assertEqual(cmd[-2], 'example-ssh-alias')
+        for action in ['stat', 'discover', 'download', 'compile']:
+            cmd = helper.command(self.cfg, action)
+            self.assertEqual(cmd[:4], ['hc', 'exec', '--on', 'example'])
+            self.assertEqual(json.loads(cmd[-1]), self.cfg)
+            self.assertEqual(cmd[-2], action)
+            self.assertNotEqual(cmd[0], 'ssh')
+
+    def test_pdf_larger_than_core_output_limit_is_transferred_in_exact_chunks(self):
+        payload = b'%PDF-1.7\n' + bytes(range(256)) * 40960 + b'\n%%EOF\n'
+        self.pdf.write_bytes(payload)
+        requests = []
+        original = helper.command
+        def record(c, action):
+            if action == 'download': requests.append(c)
+            return original(c, action)
+        with patch.object(helper, 'command', side_effect=record):
+            helper.refresh(self.cfg, self.root, self.state)
+        self.assertEqual(self.dest.read_bytes(), payload)
+        self.assertEqual(len(requests), 3)
+        self.assertTrue(all(r['length'] <= 4 * 1024 * 1024 for r in requests))
+        self.assertEqual(sum(r['length'] for r in requests), len(payload))
+
+    def test_short_core_transfer_keeps_previous_local_pdf(self):
+        helper.refresh(self.cfg, self.root, self.state)
+        original_pdf = self.dest.read_bytes()
+        self.pdf.write_bytes(b'%PDF-1.7\nA new version with more content\n%%EOF\n')
+        original = helper.command
+        def truncated(c, action):
+            if action == 'download': return ['python3', '-c', 'print("%PDF-1.7")']
+            return original(c, action)
+        with patch.object(helper, 'command', side_effect=truncated):
+            with self.assertRaisesRegex(RuntimeError, 'incomplete PDF chunk'):
+                helper.refresh(self.cfg, self.root, self.state)
+        self.assertEqual(self.dest.read_bytes(), original_pdf)
+
+    def test_git_discovery_respects_ignored_files_and_includes_untracked_tex(self):
+        subprocess.run(['git', 'init', '-q', str(self.project)], check=True)
+        (self.project / '.gitignore').write_text('generated/\n')
+        (self.project / 'slides.tex').write_text(r'\documentclass{beamer}')
+        generated = self.project / 'generated'
+        generated.mkdir()
+        (generated / 'ignored.tex').write_text(r'\documentclass{article}')
+        result = helper.query(self.cfg, 'discover')
+        self.assertEqual(result['method'], 'git')
+        self.assertFalse(result['truncated'])
+        self.assertEqual(result['files'], [{'path': 'slides.tex', 'main': True}])
 
     def test_compile_real_latex_document_in_path_with_spaces(self):
         (self.project / 'main.tex').write_text(r'\documentclass{article}\begin{document}Hello $E=mc^2$.\end{document}')

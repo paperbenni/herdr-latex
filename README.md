@@ -74,24 +74,29 @@ editor integration is not included.
 Tested with Herdr 0.1.12 on Linux. The code also selects macOS's `open` launcher,
 but macOS has not been tested. Windows is not supported.
 
-- **Local computer:** Python 3, `hc`, `ssh`, a PDF viewer, and `xdg-open` on Linux
+- **Local computer:** Python 3, `hc`, a PDF viewer, and `xdg-open` on Linux
   or `open` on macOS.
 - **Machine doing the build:** Python 3, `latexmk`, and the selected engine
   (`pdflatex`, `lualatex` or `xelatex`).
-- **Remote preview:** the Herdr machine must have a usable SSH target and
-  noninteractive SSH authentication through your SSH config and agent. A connected
-  Herdr core by itself does not guarantee that a separate SSH download will work.
+- **Remote work:** a connected machine in Herdr. Discovery, compilation, metadata
+  checks and binary PDF transfers all use that existing connection through
+  `hc exec --on`. The mod does not start SSH or need a separate SSH-agent setup.
+- **Optional:** Git speeds up discovery and respects project ignore rules.
 
 This is trusted mod code. It reads TeX sources and PDFs in your working folder,
-runs builds through `hc`, uses SSH for remote scans/downloads, writes a temporary
+runs commands and transfers through `hc`, writes a temporary
 local PDF, and launches your default viewer. LaTeX builds can also execute the
 project's existing `latexmk` configuration. It does not store SSH passwords or
 upload your documents to a service.
 
 Builds are limited to ten minutes. Preview helpers survive panel closure and stop
 after twelve hours without a button action. PDF downloads are limited to 250 MiB.
-File searches follow directory symlinks safely, skip common hidden/cache folders,
-and report partial results at 2,000 matches, 10,000 directories or eight seconds.
+PDFs are transferred as exact binary 4 MiB chunks, below Herdr's 8 MiB per-command
+output limit. Discovery uses Git's tracked and untracked file lists when available,
+respecting ignore rules. Outside Git, a Python scan follows directory symlinks
+safely and skips hidden, cache, dependency and build folders. Searches report
+partial results at 2,000 matches or 10,000 directories, with a two-second fallback
+budget or up to three seconds for Git discovery.
 Narrow the filename filter or `cd` into a more specific directory when needed.
 
 Session files and build logs live under the installed mod's `.runtime/` directory.

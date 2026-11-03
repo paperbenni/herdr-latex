@@ -18,13 +18,15 @@ folder. The folder is searched automatically on opening and after context change
 Click the document card to choose another file. Engine and PDF output options are
 under **Build settings**. Icon controls have hover labels; build logs stay
 collapsed until requested or a build fails.
-**Rescan folder** follows directory links safely without a depth limit.
+**Rescan folder** uses Git's file list when available, respecting ignore rules
+and including untracked TeX files. Otherwise it uses a bounded Python scan.
 It recognizes main documents by `\documentclass` and shows those first. Toggle
 **Show all TeX files** to see included chapter files. Type a filename/path filter
 to filter results immediately; press **Search** or Enter to search the folder
 again with that filter. Searches report partial results and unreadable folders.
-They are bounded to 2,000 matches, 10,000 directories and eight seconds. Hidden
-directories, `node_modules`, `venv`, and Python bytecode folders are skipped.
+They are bounded to 2,000 matches and 10,000 directories, with a two-second
+fallback scan budget (up to three seconds for Git discovery). Fallback scans follow
+directory links safely and skip hidden, dependency, cache and build folders.
 
 **Compile** runs `latexmk`
 on that machine using the selected engine, and shows its output. The build limit
@@ -44,11 +46,12 @@ file. Relative output paths resolve against the project directory. It changes
 which PDF is previewed, not latexmk's output options; project `.latexmkrc` files
 continue to control the build.
 
-Requirements: local Python 3, `hc`, SSH and `xdg-open` (Linux) or `open` (macOS).
+Requirements: local Python 3, `hc`, and `xdg-open` (Linux) or `open` (macOS).
 The selected machine needs Python 3 and `latexmk` plus the chosen TeX engine.
-Remote downloads use the machine's SSH target, SSH config, known hosts and agent.
-They use batch authentication; establish passwordless SSH/agent access first.
-No mount, rclone, new network service or stored password is used.
+Discovery, builds and PDF transfers use the existing Herdr connection through
+`hc exec --on`. The mod does not launch SSH or require an SSH-agent environment.
+Downloads use 4 MiB binary chunks below Herdr's output limit, then atomically
+replace the local PDF. Git is an optional discovery optimization.
 
 The helper survives panel closure/reload. Preview sessions stop after twelve
 hours without a button action; idle helpers exit after ten minutes. The local
