@@ -34,7 +34,7 @@ From the repository, copy the launcher bundle:
 just toolbar-bundle ~/.config/herdr-app/mods/my-toolbar/latex
 ```
 
-Without development tools, copy `toolbar-button.js`, `session.js`,
+Without development tools, copy `LICENSE`, `toolbar-button.js`, `session.js`,
 `helper-client.js`, `model.js`, and `contracts.d.ts` into that toolbar's `latex/`
 subfolder. Keep their filenames and relative imports intact. Refresh this bundle
 when updating the panel.

@@ -49,3 +49,5 @@ are supplied by your viewer. SyncTeX editor integration is not supported.
 
 Requirements, installation, and development instructions are in the
 [project repository](https://github.com/paperbenni/herdr-latex).
+
+Licensed under GNU GPL version 2 only (`GPL-2.0-only`); see [LICENSE](LICENSE).

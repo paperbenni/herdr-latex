@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 TOOLBAR_FILES = (
+    "LICENSE",
     "toolbar-button.js",
     "session.js",
     "helper-client.js",

@@ -2,6 +2,8 @@
 name = "herdr-latex"
 version = "0.1.0"
 description = "LaTeX compilation and local PDF previews for Herdr"
+license = "GPL-2.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = []
 

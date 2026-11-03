@@ -57,3 +57,8 @@ temporary PDF, and launches your viewer. Builds use your project's existing
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and a code overview.
+
+## License
+
+Copyright (C) 2026 paperbenni. Licensed under the GNU General Public License,
+version 2 only (`GPL-2.0-only`). See [LICENSE](LICENSE).
