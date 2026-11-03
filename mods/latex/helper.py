@@ -20,6 +20,49 @@ MAX_PDF = 250 * 1024 * 1024
 CHUNK_SIZE = 4 * 1024 * 1024  # hc exec allows at most 8 MiB stdout per request.
 VERSION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16]
 
+
+class StopRequested(Exception):
+    pass
+
+
+def cancel_process(process):
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait(timeout=2)
+
+
+def run_interruptible(argv, stdout, timeout, directory):
+    if (directory / 'stop-request.json').exists():
+        raise StopRequested()
+    process = subprocess.Popen(argv, stdout=stdout, stderr=subprocess.PIPE, start_new_session=True)
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            if (directory / 'stop-request.json').exists():
+                raise StopRequested()
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            try:
+                output, error = process.communicate(timeout=0.1)
+                return subprocess.CompletedProcess(argv, process.returncode, output, error)
+            except subprocess.TimeoutExpired:
+                pass
+    finally:
+        cancel_process(process)
+        if process.stdout is not None: process.stdout.close()
+        if process.stderr is not None: process.stderr.close()
+
 # Runs on the selected machine. Paths are data, never interpolated into shell code.
 REMOTE = r'''
 import collections, itertools, json, os, pathlib, re, shutil, subprocess, sys, time
@@ -185,9 +228,15 @@ def command(c, action):
     return ['hc', 'exec', '--on', c['machine'], '--timeout', str(timeout), '--', *args]
 
 
-def query(c, action):
+def query(c, action, cancel_dir=None):
     try:
-        r = subprocess.run(command(c, action), capture_output=True, text=True, timeout=12 if action == 'discover' else 35)
+        timeout = 12 if action == 'discover' else 35
+        if cancel_dir is not None:
+            r = run_interruptible(command(c, action), subprocess.PIPE, timeout, cancel_dir)
+            r.stdout = r.stdout.decode(errors='replace')
+            r.stderr = r.stderr.decode(errors='replace')
+        else:
+            r = subprocess.run(command(c, action), capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise RuntimeError('The machine did not respond in time. Check its connection and try again.') from None
     if r.returncode:
@@ -208,7 +257,7 @@ def preview_dir(d):
 
 
 def refresh(c, d, state, force=False):
-    meta = query(c, 'stat')
+    meta = query(c, 'stat', cancel_dir=d)
     dest = Path(state['preview_path'])
     if not force and meta['stamp'] == state.get('stamp') and dest.is_file():
         return
@@ -222,7 +271,7 @@ def refresh(c, d, state, force=False):
                 length = min(CHUNK_SIZE, size - offset)
                 request = {**c, 'offset': offset, 'length': length, 'expected_stamp': meta['stamp']}
                 try:
-                    r = subprocess.run(command(request, 'download'), stdout=out, stderr=subprocess.PIPE, timeout=35)
+                    r = run_interruptible(command(request, 'download'), out, 35, d)
                 except subprocess.TimeoutExpired:
                     raise RuntimeError('Herdr PDF transfer timed out. Keeping the previous local PDF and retrying shortly.') from None
                 if r.returncode:
@@ -234,7 +283,7 @@ def refresh(c, d, state, force=False):
                 atomic_json(d / 'status.json', state)
         if partial.stat().st_size > MAX_PDF or partial.stat().st_size < 8:
             raise RuntimeError('The downloaded PDF is empty or too large.')
-        after = query(c, 'stat')
+        after = query(c, 'stat', cancel_dir=d)
         if after['stamp'] != meta['stamp']:
             raise RuntimeError('PDF changed while fetching it; retrying shortly.')
         os.replace(partial, dest)
@@ -284,8 +333,16 @@ def worker(d):
                 state['error'] = ''
                 try:
                     if action == 'stop':
-                        state.update(watching=False, phase='Preview updates stopped')
+                        if build:
+                            cancel_process(build)
+                            build = None
+                            build_out.close()
+                            build_out = None
+                            state['build_code'] = None
+                        state.update(watching=False, building=False, cancelled=True, phase='Stopped')
                         auto_open = False
+                        preview_after_build = False
+                        (d / 'stop-request.json').unlink(missing_ok=True)
                     elif action in ('compile', 'build-preview'):
                         if build:
                             continue
@@ -295,9 +352,9 @@ def worker(d):
                         build = subprocess.Popen(command(c, 'compile'), stdout=build_out, stderr=subprocess.STDOUT, start_new_session=True)
                         build_started = now
                         preview_after_build = action == 'build-preview'
-                        state.update(building=True, phase='Compiling…', build_log='', build_code=None)
+                        state.update(building=True, cancelled=False, phase='Compiling…', build_log='', build_code=None)
                     elif action in ('preview', 'refresh'):
-                        state.update(watching=True, phase='Fetching PDF…')
+                        state.update(watching=True, cancelled=False, phase='Fetching PDF…')
                         auto_open = action == 'preview'
                         next_check = 0
                 except Exception as e:
@@ -335,6 +392,9 @@ def worker(d):
                     if auto_open:
                         viewer = open_pdf(state['preview_path'], d)
                         auto_open = False
+                except StopRequested:
+                    state.update(watching=False, cancelled=True, error='', phase='Stopped')
+                    auto_open = False
                 except Exception as e:
                     state.update(error=str(e), phase='Waiting for PDF · retrying automatically')
                 next_check = time.monotonic() + INTERVAL
@@ -388,6 +448,8 @@ def main():
             if old.get('watching') and args.action == 'compile':
                 atomic_json(d / f'request-{time.time_ns()}-resume.json', {'action': 'refresh'})
     atomic_json(d / 'config.json', c)
+    if args.action == 'stop':
+        atomic_json(d / 'stop-request.json', {'stop': True})
     atomic_json(d / f'request-{time.time_ns()}-{uuid.uuid4().hex}.json', {'action': args.action})
     # Duplicate starts are harmless: worker.lock admits just one supervisor.
     log = (d / 'helper.log').open('ab')

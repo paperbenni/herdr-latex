@@ -19,15 +19,16 @@ toolbar mod before changing it, and preserve my other customizations.
 ```
 
 The repository uses Herdr's community mod format: `mods/latex/`, `RECIPE.md` and
-`preview.png`. The installer agent should copy the mod, check it, and connect a
-toolbar button to `run("mod.open", { name: "latex" })`. A personal layout is not
+`preview.png`. The installer agent should copy the mod, check it, and mount the
+provided toolbar component with live context forwarding. A personal layout is not
 bundled, so installation can fit your existing layout.
 
 For the activity indicator, copy `mods/latex/toolbar-button.js` into your personal
 toolbar mod as `latex-button.js`, import its default View, and mount it using
 `cx.new()` in the toolbar's `init` method. Render the returned entity as a child.
-The component handles opening the panel, green active styling and the play symbol;
-see [RECIPE.md](RECIPE.md) for an integration example.
+The component handles opening the panel, scoped green styling, the play symbol and
+the active-session chooser. Forward `latexButtonContext()` from the parent toolbar
+when its live context changes; see [RECIPE.md](RECIPE.md) for an integration example.
 
 For a manual install, copy `mods/latex` into `~/.config/herdr-app/mods/latex` without
 overwriting an existing mod. Then run:
@@ -54,16 +55,22 @@ temporary roots. The panel asks you to navigate to a project directory instead
 of searching through unrelated files. Project subfolders still work normally;
 you can also enter an explicit file path without scanning.
 
-The toolbar button turns **green with ▶** while a build or preview update session
-is active. It keeps showing activity when the panel is closed. When the helper
-stops updating, or polling stops and no build is running, the button returns to
-its normal appearance.
+The toolbar button turns **green with ▶** when a build or preview belongs to the
+current machine and folder, including when the panel is closed. Activity in a
+different folder is shown as a small green dot on a neutral button. Clicking then
+offers **Open LaTeX here** or **Go to active preview**. Jumping reuses a matching
+project pane if available, or opens a tab at that folder. Opening here preserves
+your current session and does not stop the other preview.
 
 - **Compile only** (hammer icon) runs `latexmk` and exposes the build log.
+- **Compile & Preview** becomes **Stop** while this folder's build or preview is
+  active. Stop cancels an ongoing build or transfer and stops future updates,
+  retaining the previous local PDF and leaving the viewer open.
 - **Preview** opens an existing PDF without compiling and checks for updates every
   three seconds. A changed PDF is downloaded in full and atomically replaces the
   same local file. An interrupted or incomplete download keeps the previous PDF.
-- The **refresh icon** checks immediately; the **stop icon** ends polling.
+- The **refresh icon** checks immediately. The primary **Stop** button ends activity;
+  there is no separate stop control.
   Icon controls have hover labels.
 - **Build settings** contains the engine selector and an optional custom PDF
   path such as
@@ -117,7 +124,7 @@ See [RECIPE.md](RECIPE.md) for the interface and integration behavior.
 ```sh
 herdr-app check ./mods/latex
 python3 -m unittest discover -s mods/latex/tests -v
-node --test mods/latex/tests/test_context.cjs mods/latex/tests/test_toolbar.cjs
+node --test mods/latex/tests/test_context.cjs mods/latex/tests/test_toolbar.cjs mods/latex/tests/test_session_picker.cjs
 ```
 
 The Python integration tests additionally need local `latexmk`, `pdflatex`, and

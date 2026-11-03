@@ -24,16 +24,21 @@ PDF in the local desktop viewer. Add a LaTeX toolbar button during installation.
 - A collapsed **Build settings** row, showing the current engine. Expanding it
   reveals PDFLaTeX, LuaLaTeX and XeLaTeX choices and an optional PDF output override.
 - A compact build/preview status section appears only when relevant to this
-  source or when another preview/build is still active. It includes refresh/stop
-  icons and a collapsible monospace build log. Errors expand the log automatically.
+  folder. It includes a refresh icon and a collapsible monospace build log.
+  Errors expand the log automatically.
 - The footer has one wide **Compile & Preview** primary button, a secondary
   **Preview** button and a hammer icon for **Compile only**. These remain visible
   while scrolling. Icon controls have hover labels and accessibility labels.
   Buttons requiring a document are disabled until one is selected, and build
   buttons are disabled while that build runs.
-- The toolbar's LaTeX button turns green (`#15803d`, white text) with a ▶ symbol
-  while a build or preview update session is active. Inactive styling follows the
-  theme. In a collapsed sidebar the active button shows just ▶.
+  The primary button becomes **Stop** while a build or preview belongs to this
+  folder. Show **Stopping…** until cancellation completes, then restore the start
+  action. Do not show a duplicate stop icon elsewhere in the panel.
+- The toolbar's LaTeX button turns green (`#15803d`, white text) with ▶ only when
+  activity belongs to the current machine/folder. Activity elsewhere gets a small
+  green dot on the neutral button. Clicking it offers **Open LaTeX here** and
+  **Go to active preview**, each labelled with its machine and folder. In a
+  collapsed sidebar the current-folder active button shows just ▶.
 
 ## How it behaves
 
@@ -69,7 +74,11 @@ stable local path with the OS viewer, and checks upstream metadata every three
 seconds. Changed PDFs are downloaded to a partial file, checked for stability and
 PDF markers, and atomically replace the local copy. Unchanged files are not
 transferred. Missing PDFs or broken connections retain the previous local copy
-and retry. Stop ends polling without closing the viewer. Refresh checks now.
+and retry. The primary Stop action ends polling and cancels an in-progress build
+or transfer, retaining the last PDF and leaving the viewer open. Use process-group
+termination and stop checks while waiting on core requests, so cancellation is
+prompt even if a transfer or command is blocked. Never open the viewer after a
+cancelled build. Refresh checks now.
 
 Helpers continue when the overlay closes or reloads, for at most twelve hours
 without a button action. Idle helpers stop after ten minutes. Show which source
@@ -107,12 +116,23 @@ For a visible **LaTeX** button with an activity indicator, copy
 `latex-button.js`, then integrate its native View:
 
 ```js
-import LatexToolbarButton from "./latex-button.js";
+import LatexToolbarButton, { latexButtonContext } from "./latex-button.js";
 
 // In the toolbar View's init method:
-this.latexButton = cx.new(LatexToolbarButton);
+const context = latexButtonContext();
+this.latexContext = JSON.stringify(context);
+this.latexButton = cx.new(LatexToolbarButton, context);
 
-// In its render method, include the retained entity:
+// In render(cx), subscribe to context changes and defer child updates:
+const context = latexButtonContext();
+const key = JSON.stringify(context);
+if (key !== this.latexContext) {
+  this.latexContext = key;
+  cx.spawn(async cx => {
+    await cx.sleep(0);
+    if (this.latexContext === key) this.latexButton.set_props(context);
+  });
+}
 toolbar.child(this.latexButton);
 ```
 
@@ -126,7 +146,14 @@ stops mouse-down propagation so clicking does not drag the window. It reads
 watchers count as active only with a live PID field and a heartbeat less than
 180 seconds old. If the panel has not yet published a status-file pointer, it can
 look up the existing `latex.active-session` through the helper's status command.
-It keeps working while the panel is closed. `mod.open` toggles the overlay. There is no bundled
+It keeps working while the panel is closed. Parent context forwarding is important
+for a retained nested view: it makes the button respond to live focus changes
+without polling Herdr's model. `session-picker.js` implements the compact choice
+popup; its jump action selects an existing matching pane on the correct machine,
+or creates a tab at the preview folder if that pane no longer exists. Opening the
+current folder preserves focus and does not stop the background preview. Starting
+a new build/preview explicitly replaces the previous managed activity.
+`mod.open` toggles the overlay. There is no bundled
 layout or keybinding to replace the person's setup. Include the mod's SVG icons
 when copying it.
 
@@ -161,8 +188,9 @@ when copying it.
 ## Done when
 
 1. The toolbar button opens and closes the panel with one click.
-   It turns green with ▶ during builds or preview updates, stays active after
-   panel closure, and clears when activity stops or its heartbeat becomes stale.
+   It turns green with ▶ only in the active machine/folder. Elsewhere it is neutral
+   and offers opening here or jumping to the active preview. Both choices preserve
+   the intended folder, and the green state clears when activity stops or goes stale.
 2. A focused remote terminal sets the correct machine and live cwd, even if its
    space was originally created elsewhere; switching session or `cd` updates it.
 3. A project with `paper/main.tex` and `slides/slides.tex` lists both main documents,
@@ -171,5 +199,7 @@ when copying it.
    reports failure and does not launch a preview through Compile & Preview.
 5. Preview opens a temporary local path; a later upstream edit updates that same
    local path. An incomplete or interrupted replacement keeps the previous PDF.
-6. Stop ends polling, and closing/reopening the panel can still control its helper.
+6. The primary action becomes Stop during activity; it cancels a running build or
+   transfer and stops polling without closing the viewer. Closing/reopening the
+   panel can still control its helper. No duplicate stop control is shown.
 7. `herdr-app check mods/latex`, the Python suite and the Node context tests pass.

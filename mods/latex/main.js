@@ -1,6 +1,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { appHome, closeOverlay, exec, focused, home, nextCommand, panes, props, readTextFile, shared, setShared, spaces, theme } from "herdr";
+import LatexSessionPicker from "./session-picker.js";
 
 const ENGINES = [["pdflatex", "PDFLaTeX"], ["lualatex", "LuaLaTeX"], ["xelatex", "XeLaTeX"]];
 const sourceKey = c => JSON.stringify([c.machine || "", c.folder]);
@@ -17,6 +18,10 @@ function context() {
 
 export default class Latex extends View {
   init(_props, cx) {
+    if (props()?.sessionPicker) {
+      this.sessionPicker = cx.new(LatexSessionPicker, props());
+      return;
+    }
     const here = context();
     this.source = here;
     const previous = shared("latex.active-session");
@@ -40,6 +45,7 @@ export default class Latex extends View {
     this.files = null;
     this.error = "";
     this.busy = false;
+    this.stopPending = false;
     this.finding = false;
     this.polling = false;
     this.mainsOnly = true;
@@ -120,6 +126,7 @@ export default class Latex extends View {
         }
         if (status.pid && Date.now() / 1000 - status.heartbeat > 180) status = { ...status, watching: false, building: false, phase: "Helper stopped responding. Try again." };
         this.status = status;
+        if (!status.building && !status.watching) this.stopPending = false;
         if (status.build_code !== undefined && status.build_code !== null && status.build_code !== 0) this.showLog = true;
       } catch (e) { this.error = String(e); }
       finally { this.polling = false; cx.notify(); }
@@ -136,20 +143,21 @@ export default class Latex extends View {
     }
     const changed = configKey(config) !== configKey(this.active);
     this.busy = true;
+    if (action === "stop") this.stopPending = true;
     this.error = "";
     cx.notify();
     cx.spawn(async cx => {
       try {
-        if (changed && this.status.watching) await this.helper("stop", this.active);
+        if (changed && (this.status.watching || this.status.building)) await this.helper("stop", this.active);
         const r = await this.helper(action, config);
         this.active = config;
         setShared("latex.active-session", config);
         this.statusFile = r.status_file;
         setShared("latex.status-file", r.status_file);
         const build = ["compile", "build-preview"].includes(action);
-        this.status = { ...(changed ? {} : this.status), building: build || (!changed && this.status.building), phase: build ? "Starting build…" : action === "stop" ? "Stopping preview updates…" : "Fetching PDF…" };
+        this.status = { ...(changed ? {} : this.status), building: build || (!changed && this.status.building), phase: build ? "Starting build…" : action === "stop" ? "Stopping…" : "Fetching PDF…" };
         this.save();
-      } catch (e) { this.error = String(e); }
+      } catch (e) { this.stopPending = false; this.error = String(e); }
       this.busy = false;
       cx.notify();
       this.poll(cx);
@@ -183,6 +191,7 @@ export default class Latex extends View {
   }
 
   render(cx) {
+    if (this.sessionPicker) return this.sessionPicker;
     // Herdr re-renders on live context changes. Defer input updates out of render.
     if (sourceKey(context()) !== sourceKey(this.source) && !this.contextPending) {
       this.contextPending = true;
@@ -196,7 +205,8 @@ export default class Latex extends View {
     const st = this.status;
     const config = this.config();
     const same = configKey(config) === configKey(this.active);
-    const building = same && st.building;
+    const sessionHere = sourceKey(config) === sourceKey(this.active);
+    const running = sessionHere && Boolean(st.building || st.watching || this.stopPending);
     const failed = st.build_code !== undefined && st.build_code !== null && st.build_code !== 0;
     const icon = (name, size = 16) => svg(`mods/latex/icons/${name}.svg`).size(size).flex_none();
     const button = (id, text, symbol, action, primary = false, disabled = false) => h_flex().id(id).h(primary ? 40 : 36).px(13).gap(7).items_center().justify_center().rounded(8)
@@ -216,7 +226,7 @@ export default class Latex extends View {
     const mainCount = allFiles.filter(f => f.main).length;
     const visible = allFiles.filter(f => (!this.mainsOnly || !mainCount || needle || f.main) && f.path.toLowerCase().includes(needle));
     const choosing = this.choosing || !config.tex;
-    const statusTitle = st.building ? "Compiling…" : st.watching ? (st.error ? "Reconnecting preview" : "Live preview") : failed ? "Build failed" : st.updated ? "Preview paused" : st.build_code === 0 ? "Build complete" : "";
+    const statusTitle = this.stopPending ? "Stopping…" : st.building ? "Compiling…" : st.watching ? (st.error ? "Reconnecting preview" : "Live preview") : st.cancelled ? "Stopped" : failed ? "Build failed" : st.updated ? "Preview paused" : st.build_code === 0 ? "Build complete" : "";
     const statusIcon = st.building ? "refresh" : st.error || failed ? "alert" : st.watching || st.build_code === 0 ? "check" : "clock";
     const statusColor = st.error || failed ? t.blocked : st.watching ? "#4ade80" : t.muted;
     return v_flex().id("latex-panel").track_focus(this.handle).size_full().bg(t.surface).text_color(t.foreground).text_size(12)
@@ -273,14 +283,13 @@ export default class Latex extends View {
           .child(v_flex().gap(5).child(div().text_size(11).text_color(t.muted).child("PDF to open"))
             .child(input("pdf").tooltip("Optional PDF override, relative to the current folder. Compiler output settings remain controlled by your project."))
             .child(div().text_size(10).text_color(t.dim).child("Leave blank to use the PDF next to your TeX file.")))))
-        .when(Boolean((same || st.building || st.watching) && (statusTitle || st.error || st.build_log)), el => el.child(v_flex().mt(16).pt(16).gap(9).border_t(1).border_color(t.border)
+        .when(Boolean(sessionHere && (statusTitle || st.error || st.build_log)), el => el.child(v_flex().mt(16).pt(16).gap(9).border_t(1).border_color(t.border)
           .child(h_flex().gap(8).items_center()
             .child(div().text_color(statusColor).child(st.building ? icon(statusIcon, 16).spin(1400) : icon(statusIcon, 16)))
             .child(v_flex().flex_1().gap(3)
               .child(div().font_medium().child(statusTitle || "Preview"))
               .when(Boolean(st.updated), el => el.child(div().text_size(10).text_color(t.dim).child(`Updated ${new Date(st.updated * 1000).toLocaleTimeString()}`))))
-            .when(Boolean(st.watching), el => el.child(iconButton("latex-refresh", "refresh", "Refresh preview now", cx => this.act("refresh", cx), this.busy))
-              .child(iconButton("latex-stop", "stop", "Stop automatic preview updates", cx => this.act("stop", cx), this.busy))))
+            .when(Boolean(st.watching), el => el.child(iconButton("latex-refresh", "refresh", "Refresh preview now", cx => this.act("refresh", cx), this.busy || this.stopPending))))
           .when(!same && Boolean(st.building || st.watching), el => el.child(div().text_size(11).text_color(t.muted).child(`${this.active.machine || "This computer"} · ${this.active.tex || this.active.pdf}`)))
           .when(Boolean(st.error), el => el.child(div().text_color(t.blocked).child(st.error)))
           .when(Boolean(st.build_log), el => el.child(h_flex().gap(6).text_color(t.dim)
@@ -288,9 +297,9 @@ export default class Latex extends View {
           .when(Boolean(this.showLog && st.build_log), el => el.child(div().id("latex-log").max_h(240).overflow_y_scrollbar().p(12).rounded(8).bg(t.background).font_family("Geist Mono").text_size(11).text_color(t.muted).child(st.build_log || "")))))))
       .child(v_flex().flex_none().px(22).py(16).gap(9).border_t(1).border_color(t.border).bg(t.surface)
         .child(h_flex().gap(8).items_center()
-          .child(button("latex-build-preview", building ? "Compiling…" : "Compile & Preview", "play", cx => this.act("build-preview", cx), true, this.busy || building || !config.tex || !config.folder).flex_1())
-          .child(button("latex-preview", "Preview", "external", cx => this.act("preview", cx), false, this.busy || (!config.tex && !config.pdf) || !config.folder))
-          .child(iconButton("latex-compile", "hammer", "Compile only", cx => this.act("compile", cx), this.busy || building || !config.tex || !config.folder)))
-        .child(div().text_size(10).text_color(t.dim).child(st.watching ? "Updates every 3 seconds, including when this panel is closed." : "Opens in your desktop PDF viewer.")));
+          .child(button("latex-build-preview", this.stopPending ? "Stopping…" : running ? "Stop" : "Compile & Preview", running ? "stop" : "play", cx => this.act(running ? "stop" : "build-preview", cx), true, this.busy || this.stopPending || (!running && (!config.tex || !config.folder))).flex_1())
+          .child(button("latex-preview", "Preview", "external", cx => this.act("preview", cx), false, this.busy || this.stopPending || Boolean(st.building) || (!config.tex && !config.pdf) || !config.folder))
+          .child(iconButton("latex-compile", "hammer", "Compile only", cx => this.act("compile", cx), this.busy || this.stopPending || Boolean(st.building) || !config.tex || !config.folder)))
+        .child(div().text_size(10).text_color(t.dim).child(sessionHere && st.watching ? "Updates every 3 seconds, including when this panel is closed." : "Opens in your desktop PDF viewer.")));
   }
 }

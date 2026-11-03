@@ -6,9 +6,10 @@ After installation, use your LaTeX toolbar button, or:
 herdr-app do mod.open --name latex
 ```
 
-The reusable `toolbar-button.js` View turns green with ▶ while a build or preview
-update session is active, including while the panel is closed. See the repository's
-RECIPE.md for toolbar integration instructions.
+The reusable `toolbar-button.js` View turns green with ▶ for activity in the
+current folder. Elsewhere it stays neutral with a green dot; clicking offers
+**Open LaTeX here** or **Go to active preview**. See RECIPE.md for integration,
+including forwarding `latexButtonContext()` from the parent toolbar.
 
 The panel follows the current Herdr session's machine and live working directory.
 Switch sessions or `cd` in the terminal to change folders. The current machine
@@ -35,13 +36,16 @@ directory links safely and skip hidden, dependency, cache and build folders.
 **Compile** runs `latexmk`
 on that machine using the selected engine, and shows its output. The build limit
 is ten minutes. The directory of the TeX file is used by `latexmk -cd`.
+**Compile & Preview** turns into **Stop** while this folder's build or preview is
+active. Stop cancels builds, transfers and future updates while retaining the
+last PDF and leaving the viewer open. It replaces the separate stop control.
 **Compile & Preview** opens the PDF only after the build succeeds. Build errors
 expand the log automatically. Action buttons stay visible while scrolling.
 
 **Preview** downloads the existing PDF to a private temporary directory and opens
 it with the local system viewer. It watches every three seconds, transfers the
 whole PDF only after its metadata changes, checks for changes during transfer,
-and atomically replaces the same local filename. **Stop updates** stops polling;
+and atomically replaces the same local filename. **Stop** stops polling;
 it does not close the viewer or delete the last PDF. Successful builds refresh a
 running preview. To preview first, either compile or supply an existing PDF path.
 
@@ -73,4 +77,5 @@ herdr-app check ~/.config/herdr-app/mods/latex
 python3 -m unittest discover -s ~/.config/herdr-app/mods/latex/tests
 node --test ~/.config/herdr-app/mods/latex/tests/test_context.cjs
 node --test ~/.config/herdr-app/mods/latex/tests/test_toolbar.cjs
+node --test ~/.config/herdr-app/mods/latex/tests/test_session_picker.cjs
 ```

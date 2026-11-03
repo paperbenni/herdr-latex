@@ -15,10 +15,10 @@ function panel() {
     return { value: () => text, on: (name, fn) => { handlers[name] = fn; },
       set_value(next) { text = next; }, focus() {} };
   } };
-  const Latex = new Function('View', 'InputState', 'focused', 'spaces', 'panes', 'home', 'shared', 'setShared', source)(
+  const Latex = new Function('View', 'InputState', 'focused', 'spaces', 'panes', 'home', 'shared', 'setShared', 'props', source)(
     class {}, inputs, () => focus,
     () => [{ id: 'remote-space', machine: 'ufr', folder: '/wrong/stale-folder', tabs: [{ id: 'active-tab', active: true }] }],
-    () => [{ tab: 'active-tab', cwd: '/remote/live-pane' }], () => '/local/home', k => store[k], (k, v) => { store[k] = v; });
+    () => [{ tab: 'active-tab', cwd: '/remote/live-pane' }], () => '/local/home', k => store[k], (k, v) => { store[k] = v; }, () => ({}));
   const cx = { focus_handle: () => ({}), notify() {}, timer: { every() {} }, spawn() {} };
   const view = new Latex();
   view.poll = () => {};

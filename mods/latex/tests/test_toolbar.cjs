@@ -6,14 +6,18 @@ const path = require('node:path');
 function button(store = {}) {
   let status = {};
   let task;
+  const calls = [];
+  let focus = { space: 'remote-space', tab: 'remote-tab', cwd: '/paper' };
   const source = fs.readFileSync(path.join(__dirname, '..', 'toolbar-button.js'), 'utf8')
-    .replace(/^import .*;\n/gm, '').replace('export default class LatexToolbarButton', 'class LatexToolbarButton');
-  const { LatexToolbarButton, isActive } = new Function('View', 'shared', 'readTextFile', 'exec', 'appHome', source + '\nreturn {LatexToolbarButton, isActive};')(
+    .replace(/^import .*;\n/gm, '').replace(/^export function /gm, 'function ').replace('export default class LatexToolbarButton', 'class LatexToolbarButton');
+  const { LatexToolbarButton, isActive, sameFolder } = new Function('View', 'shared', 'readTextFile', 'exec', 'appHome', 'focused', 'spaces', 'panes', 'home', 'closeOverlay', 'openOverlay', 'run', 'layout', source + '\nreturn {LatexToolbarButton, isActive, sameFolder};')(
     class {}, key => store[key], async () => JSON.stringify(status),
-    async () => ({ code: 0, stdout: JSON.stringify({ status }) }), () => '/app');
+    async () => ({ code: 0, stdout: JSON.stringify({ status }) }), () => '/app',
+    () => focus, () => [{ id: 'remote-space', machine: 'remote', folder: '/stale', tabs: [{ id: 'remote-tab', active: true }] }],
+    () => [], () => '/local/home', id => calls.push(['close', id]), options => calls.push(['popup', options]), (name, args) => calls.push([name, args]), () => ({ id: 'root' }));
   const view = new LatexToolbarButton();
   const cx = { notify() {}, timer: { every() {} }, spawn(fn) { task = fn(cx); } };
-  return { view, cx, isActive, status: next => { status = next; }, wait: () => task };
+  return { view, cx, isActive, sameFolder, calls, focus: next => { focus = next; }, status: next => { status = next; }, wait: () => task };
 }
 
 test('active means a live build or preview watcher, and excludes stale or stopped helpers', () => {
@@ -43,4 +47,36 @@ test('existing sessions are detected before a status-file pointer has been saved
   p.view.init({}, p.cx);
   await p.wait();
   assert.equal(p.view.active, true);
+});
+
+test('active styling is scoped to the same machine and folder', () => {
+  const { sameFolder } = button();
+  assert.equal(sameFolder({ machine: 'remote', folder: '/paper/' }, { machine: 'remote', folder: '/paper' }), true);
+  assert.equal(sameFolder({ machine: 'other', folder: '/paper' }, { machine: 'remote', folder: '/paper' }), false);
+  assert.equal(sameFolder({ machine: 'remote', folder: '/elsewhere' }, { machine: 'remote', folder: '/paper' }), false);
+});
+
+test('clicking an activity in another folder offers current-folder and active-preview choices', () => {
+  const active = { machine: 'remote', folder: '/other-project', tex: 'main.tex' };
+  const p = button({ 'latex.active-session': active });
+  p.view.active = true;
+  p.view.open();
+  const popup = p.calls.find(c => c[0] === 'popup')[1];
+  assert.equal(popup.mod, 'latex');
+  assert.equal(popup.props.sessionPicker, true);
+  assert.deepEqual(popup.props.current, { machine: 'remote', folder: '/paper' });
+  assert.deepEqual(popup.props.active, active);
+  assert.equal(p.calls.some(c => c[0] === 'mod.open'), false);
+});
+
+test('same-folder or inactive toolbar clicks open the current panel directly', () => {
+  const p = button({ 'latex.active-session': { machine: 'remote', folder: '/paper' } });
+  p.view.active = true;
+  p.view.open();
+  assert.deepEqual(p.calls, [['mod.open', { name: 'latex' }]]);
+  p.calls.length = 0;
+  p.view.active = false;
+  p.focus({ space: 'remote-space', tab: 'remote-tab', cwd: '/another-folder' });
+  p.view.open();
+  assert.deepEqual(p.calls, [['mod.open', { name: 'latex' }]]);
 });

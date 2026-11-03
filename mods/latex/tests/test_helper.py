@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -211,6 +212,58 @@ class PreviewTests(unittest.TestCase):
         self.assertTrue((self.project / 'main.synctex.gz').exists())
         info = subprocess.check_output(['pdfinfo', str(self.pdf)], text=True)
         self.assertIn('Pages:', info)
+
+    def test_stop_interrupts_an_in_progress_transfer(self):
+        timer = threading.Timer(0.2, lambda: (self.root / 'stop-request.json').write_text('{}'))
+        timer.start()
+        started = time.monotonic()
+        try:
+            with self.assertRaises(helper.StopRequested):
+                helper.run_interruptible(['python3', '-c', 'import time; time.sleep(60)'], subprocess.PIPE, 65, self.root)
+        finally:
+            timer.cancel()
+        self.assertLess(time.monotonic() - started, 3)
+
+    def test_stop_cancels_a_running_build_without_starting_preview(self):
+        helper_copy = self.root / 'helper.py'
+        shutil.copyfile(Path(helper.__file__), helper_copy)
+        fake_bin = self.root / 'bin'
+        fake_bin.mkdir()
+        marker = self.root / 'engine.pid'
+        engine = fake_bin / 'latexmk'
+        engine.write_text('#!/usr/bin/env python3\nimport os,pathlib,time\npathlib.Path(os.environ["LATEX_TEST_PID"]).write_text(str(os.getpid()))\ntime.sleep(60)\n')
+        engine.chmod(0o700)
+        (self.project / 'main.tex').write_text(r'\documentclass{article}')
+        env = {**os.environ, 'PATH': str(fake_bin) + os.pathsep + os.environ['PATH'], 'LATEX_TEST_PID': str(marker)}
+        def submit(action):
+            r = subprocess.run([sys.executable, str(helper_copy), action, '--config', json.dumps(self.cfg)], env=env, capture_output=True, text=True, check=True)
+            return json.loads(r.stdout)
+        result = submit('build-preview')
+        status_path = Path(result['status_file'])
+        def wait_for(predicate):
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                state = helper.load(status_path, {})
+                if predicate(state): return state
+                time.sleep(0.1)
+            self.fail('Build did not reach expected state: ' + str(helper.load(status_path, {})))
+        try:
+            wait_for(lambda s: s.get('building') and marker.exists())
+            started = time.monotonic()
+            submit('stop')
+            state = wait_for(lambda s: s.get('cancelled') and not s.get('building') and not s.get('watching'))
+            self.assertLess(time.monotonic() - started, 4)
+            self.assertEqual(state['phase'], 'Stopped')
+            self.assertIsNone(state['build_code'])
+            self.assertFalse(state.get('updated'))
+            live = subprocess.run(['ps', '-p', marker.read_text(), '-o', 'stat='], capture_output=True, text=True)
+            self.assertTrue(not live.stdout.strip() or live.stdout.strip().startswith('Z'))
+        finally:
+            state = helper.load(status_path, {})
+            if state.get('pid'):
+                try: os.killpg(state['pid'], signal.SIGTERM)
+                except ProcessLookupError: pass
+            if state.get('preview_path'): shutil.rmtree(Path(state['preview_path']).parent, ignore_errors=True)
 
     def test_background_preview_opens_updates_and_stops(self):
         # Exercise the actual detached supervisor, replacing only the OS viewer.
