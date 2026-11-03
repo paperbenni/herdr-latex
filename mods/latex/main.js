@@ -107,6 +107,7 @@ export default class Latex extends View {
           const r = await this.helper("status", active);
           if (active !== this.active) return;
           this.statusFile = r.status_file;
+          if (shared("latex.status-file") !== r.status_file) setShared("latex.status-file", r.status_file);
           status = r.status;
         } else {
           const content = await readTextFile(statusFile);
@@ -140,6 +141,7 @@ export default class Latex extends View {
         this.active = config;
         setShared("latex.active-session", config);
         this.statusFile = r.status_file;
+        setShared("latex.status-file", r.status_file);
         const build = ["compile", "build-preview"].includes(action);
         this.status = { ...(changed ? {} : this.status), building: build || (!changed && this.status.building), phase: build ? "Starting build…" : action === "stop" ? "Stopping preview updates…" : "Fetching PDF…" };
         this.save();

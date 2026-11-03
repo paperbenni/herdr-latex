@@ -23,6 +23,12 @@ The repository uses Herdr's community mod format: `mods/latex/`, `RECIPE.md` and
 toolbar button to `run("mod.open", { name: "latex" })`. A personal layout is not
 bundled, so installation can fit your existing layout.
 
+For the activity indicator, copy `mods/latex/toolbar-button.js` into your personal
+toolbar mod as `latex-button.js`, import its default View, and mount it using
+`cx.new()` in the toolbar's `init` method. Render the returned entity as a child.
+The component handles opening the panel, green active styling and the play symbol;
+see [RECIPE.md](RECIPE.md) for an integration example.
+
 For a manual install, copy `mods/latex` into `~/.config/herdr-app/mods/latex` without
 overwriting an existing mod. Then run:
 
@@ -41,6 +47,11 @@ herdr-app do mod.open --name latex
 The panel follows the active session's machine and live working directory. Use
 Herdr's existing navigation or `cd` to change projects. Document and engine
 preferences are remembered per machine and folder.
+
+The toolbar button turns **green with ▶** while a build or preview update session
+is active. It keeps showing activity when the panel is closed. When the helper
+stops updating, or polling stops and no build is running, the button returns to
+its normal appearance.
 
 - **Compile** runs `latexmk` and exposes the build log.
 - **Preview** opens an existing PDF without compiling and checks for updates every
@@ -92,7 +103,7 @@ See [RECIPE.md](RECIPE.md) for the interface and integration behavior.
 ```sh
 herdr-app check ./mods/latex
 python3 -m unittest discover -s mods/latex/tests -v
-node --test mods/latex/tests/test_context.cjs
+node --test mods/latex/tests/test_context.cjs mods/latex/tests/test_toolbar.cjs
 ```
 
 The Python integration tests additionally need local `latexmk`, `pdflatex`, and

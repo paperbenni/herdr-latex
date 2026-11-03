@@ -6,6 +6,10 @@ After installation, use your LaTeX toolbar button, or:
 herdr-app do mod.open --name latex
 ```
 
+The reusable `toolbar-button.js` View turns green with ▶ while a build or preview
+update session is active, including while the panel is closed. See the repository's
+RECIPE.md for toolbar integration instructions.
+
 The panel follows the current Herdr session's machine and live working directory.
 Switch sessions or `cd` in the terminal to change folders. The current machine
 and folder appear as a read-only label; there is no separate project selector.
@@ -58,4 +62,5 @@ Validation:
 herdr-app check ~/.config/herdr-app/mods/latex
 python3 -m unittest discover -s ~/.config/herdr-app/mods/latex/tests
 node --test ~/.config/herdr-app/mods/latex/tests/test_context.cjs
+node --test ~/.config/herdr-app/mods/latex/tests/test_toolbar.cjs
 ```

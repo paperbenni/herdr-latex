@@ -23,6 +23,9 @@ PDF in the local desktop viewer. Add a LaTeX toolbar button during installation.
 - Footer buttons: **Compile & Preview**, **Compile**, **Preview ↗**. These remain
   visible when the body scrolls. Buttons requiring a document are disabled until
   a document is selected, and build buttons are disabled while that build runs.
+- The toolbar's LaTeX button turns green (`#15803d`, white text) with a ▶ symbol
+  while a build or preview update session is active. Inactive styling follows the
+  theme. In a collapsed sidebar the active button shows just ▶.
 
 ## How it behaves
 
@@ -77,17 +80,31 @@ per configuration uses an exclusive file lock, a JSON request queue, atomically
 written status, and an upgrade marker so idle workers can load new helper code.
 Viewer launch uses `xdg-open` on Linux or `open` on macOS.
 
-Connect a visible **LaTeX** button in the person's existing toolbar to:
+For a visible **LaTeX** button with an activity indicator, copy
+`mods/latex/toolbar-button.js` into the person's cloned/personal toolbar mod as
+`latex-button.js`, then integrate its native View:
 
 ```js
-run("mod.open", { name: "latex" });
+import LatexToolbarButton from "./latex-button.js";
+
+// In the toolbar View's init method:
+this.latexButton = cx.new(LatexToolbarButton);
+
+// In its render method, include the retained entity:
+toolbar.child(this.latexButton);
 ```
 
 Clone shipped layouts and toolbar mods before editing. Preserve existing personal
 layout changes. In Herdr's default layout, the `brand` block's `workspace-chrome`
 mod draws the upper-left toolbar; clone that mod, add a text button, and reference
-the clone from a personal layout. Stop mouse-down propagation on the button so a
-click does not drag the window. `mod.open` toggles the overlay. There is no bundled
+the clone from a personal layout. Preserve existing init logic and do not create
+an unused button instance for a footer-only copy of the toolbar. The component
+stops mouse-down propagation so clicking does not drag the window. It reads
+`latex.status-file` and polls helper status every two seconds; builds and preview
+watchers count as active only with a live PID field and a heartbeat less than
+180 seconds old. If the panel has not yet published a status-file pointer, it can
+look up the existing `latex.active-session` through the helper's status command.
+It keeps working while the panel is closed. `mod.open` toggles the overlay. There is no bundled
 layout or keybinding to replace the person's setup, and no image assets are needed
 by the mod itself.
 
@@ -120,6 +137,8 @@ by the mod itself.
 ## Done when
 
 1. The toolbar button opens and closes the panel with one click.
+   It turns green with ▶ during builds or preview updates, stays active after
+   panel closure, and clears when activity stops or its heartbeat becomes stale.
 2. A focused remote terminal sets the correct machine and live cwd, even if its
    space was originally created elsewhere; switching session or `cd` updates it.
 3. A project with `paper/main.tex` and `slides/slides.tex` lists both main documents,
