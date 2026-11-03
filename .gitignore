@@ -1,0 +1,7 @@
+**/.runtime/
+**/__pycache__/
+**/*.pyc
+**/gpui-kit.d.ts
+**/herdr.d.ts
+**/jsconfig.json
+**/*.error
