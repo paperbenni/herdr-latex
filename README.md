@@ -4,7 +4,10 @@ A LaTeX panel for [Herdr](https://herdr.dev). Compile in your current local or
 remote session, then preview an automatically updated local PDF in your desktop
 viewer. No remote filesystem mount or embedded PDF reader is needed.
 
-![Herdr LaTeX panel](preview.png)
+![LaTeX panel with an active remote preview and a Stop button](preview.png)
+
+An active preview keeps the local PDF updated. The primary button becomes **Stop**
+until you end the build or preview.
 
 ## Install
 
@@ -26,7 +29,7 @@ bundled, so installation can fit your existing layout.
 For the activity indicator, copy `mods/latex/toolbar-button.js` into your personal
 toolbar mod as `latex-button.js`. Copy `model.js` there as `latex-model.js`,
 change the button’s import to `"./latex-model.js"`, copy `contracts.d.ts` for editor
-typing, import its default View, and mount it using
+typing, import the button’s default View, and mount it using
 `cx.new()` in the toolbar's `init` method. Render the returned entity as a child.
 The component handles opening the panel, scoped green styling, the play symbol and
 the active-session chooser. Forward `latexButtonContext()` from the parent toolbar
@@ -114,8 +117,8 @@ budget or up to three seconds for Git discovery.
 Narrow the filename filter or `cd` into a more specific directory when needed.
 
 Session files and build logs live under the installed mod's `.runtime/` directory.
-The local PDF lives in a private OS temporary directory. These files and Herdr's
-generated typings are excluded from this repository.
+The local PDF lives in a private OS temporary directory. Runtime files and Herdr's
+installed generated typings are excluded from this repository. Development API snapshots are versioned under `types/`.
 
 ## Development
 

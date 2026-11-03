@@ -33,12 +33,12 @@ They are bounded to 2,000 matches and 10,000 directories, with a two-second
 fallback scan budget (up to three seconds for Git discovery). Fallback scans follow
 directory links safely and skip hidden, dependency, cache and build folders.
 
-**Compile** runs `latexmk`
+**Compile only** (the hammer icon) runs `latexmk`
 on that machine using the selected engine, and shows its output. The build limit
 is ten minutes. The directory of the TeX file is used by `latexmk -cd`.
 **Compile & Preview** turns into **Stop** while this folder's build or preview is
 active. Stop cancels builds, transfers and future updates while retaining the
-last PDF and leaving the viewer open. It replaces the separate stop control.
+last PDF and leaving the viewer open.
 **Compile & Preview** opens the PDF only after the build succeeds. Build errors
 expand the log automatically. Action buttons stay visible while scrolling.
 
@@ -70,12 +70,22 @@ Herdr updates do not replace it. Only Unix remotes are supported by this version
 Viewer auto-reload depends on the local application. Text selection, search,
 links and zoom belong to that viewer. SyncTeX editor integration is not included.
 
-Validation:
+Validation runs from the source repository, where the locked development
+packages and native API mocks live:
+
+```sh
+just setup
+just check
+just check-native
+```
+
+`just check` runs Ruff, formatting checks, strict mypy and TypeScript checking,
+and the Python and JavaScript suites. It requires Python 3.11+, Node 22.15+,
+uv and just; the integration tests also use `latexmk`, `pdflatex` and `pdfinfo`.
+The installed mod needs none of the development packages or Node.
+
+To validate an installed copy directly:
 
 ```sh
 herdr-app check ~/.config/herdr-app/mods/latex
-python3 -m unittest discover -s ~/.config/herdr-app/mods/latex/tests
-node --test ~/.config/herdr-app/mods/latex/tests/test_context.cjs
-node --test ~/.config/herdr-app/mods/latex/tests/test_toolbar.cjs
-node --test ~/.config/herdr-app/mods/latex/tests/test_session_picker.cjs
 ```

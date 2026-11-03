@@ -4,7 +4,7 @@ A native LaTeX panel that follows the current Herdr session. Choose a document,
 compile on that session's machine, and open an automatically refreshed temporary
 PDF in the local desktop viewer. Add a LaTeX toolbar button during installation.
 
-![Herdr LaTeX](preview.png)
+![LaTeX panel showing an active remote preview](preview.png)
 
 ## What you see
 
@@ -58,9 +58,10 @@ back to these broad directories when traversing a project as well. A project
 subfolder inside home is still eligible for normal discovery.
 
 Remember document, engine and PDF output per machine and folder. Automatically
-select a main document if exactly one is found. Clicking a file selects it without
-hiding the other results. Typing filters loaded results immediately; Search or
-Enter scans the folder using that filename/path filter. Rescan explicitly refreshes
+select a main document if exactly one is found. Clicking a file selects it and
+collapses the picker; reopen the document card to choose another. Typing filters
+loaded results immediately; Search or Enter scans the folder using that
+filename/path filter. Rescan explicitly refreshes
 the list. Discard results that arrive after the source changed.
 
 Compile runs `latexmk` on the selected session's machine, changes into the source
@@ -89,10 +90,11 @@ panel does not draw an agent list or animate those states.
 ## Built from
 
 Install only `mods/latex/` from this repository. It contains a GPUI `View` in
-`main.js`, standard-library Python helpers in `helper.py` and `remote.py`, a `mod.json` with
-`place: none`, keyboard focus opt-in and 620×660 overlay dimensions, usage notes,
-and regression tests. Small monochrome SVG icons live under `icons/` and are
-rendered using GPUI's tinted `svg()` builder. Do not install generated typings,
+`main.js`, standard-library Python helpers in `helper.py` and `remote.py`, and
+a `mod.json` with `place: none`, keyboard focus opt-in and 620×660 overlay dimensions, usage notes,
+and regression tests. `model.js` validates frontend/shared data and
+`contracts.d.ts` describes its domain types. Small monochrome SVG icons live under
+`icons/` and are rendered using GPUI's tinted `svg()` builder. Do not install generated typings,
 bytecode or `.runtime`.
 
 Use `gpui-kit`'s View/div and `gpui-base`'s flex builders and InputState/Input.
@@ -206,7 +208,6 @@ when copying it.
    transfer and stops polling without closing the viewer. Closing/reopening the
    panel can still control its helper. No duplicate stop control is shown.
 7. `herdr-app check mods/latex`, the Python suite and the Node context tests pass.
-
 
 ## Developer checks
 
