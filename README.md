@@ -40,7 +40,8 @@ herdr-app do mod.open --name latex
 ## Use
 
 1. Focus the Herdr session containing your project, then click **LaTeX**.
-2. Select the main document found in the current working directory. Main files
+2. Select the main document found in the current working directory. Click the
+   document card to choose a different file. Main files
    containing `\documentclass` appear first; included chapter files can be shown too.
 3. Click **Compile & Preview**. The PDF opens only after compilation succeeds.
 
@@ -53,12 +54,14 @@ is active. It keeps showing activity when the panel is closed. When the helper
 stops updating, or polling stops and no build is running, the button returns to
 its normal appearance.
 
-- **Compile** runs `latexmk` and exposes the build log.
+- **Compile only** (hammer icon) runs `latexmk` and exposes the build log.
 - **Preview** opens an existing PDF without compiling and checks for updates every
   three seconds. A changed PDF is downloaded in full and atomically replaces the
   same local file. An interrupted or incomplete download keeps the previous PDF.
-- **Refresh now** checks immediately; **Stop updates** ends the polling session.
-- **PDF output settings** lets you select a custom output path such as
+- The **refresh icon** checks immediately; the **stop icon** ends polling.
+  Icon controls have hover labels.
+- **Build settings** contains the engine selector and an optional custom PDF
+  path such as
   `build/slides.pdf`. The compiler's output location remains controlled by your
   LaTeX project configuration.
 
@@ -98,6 +101,7 @@ generated typings are excluded from this repository.
 ## Development
 
 The runtime sources are `mods/latex/main.js`, `helper.py` and `mod.json`.
+The panel's small monochrome SVG icons live in `mods/latex/icons/`.
 See [RECIPE.md](RECIPE.md) for the interface and integration behavior.
 
 ```sh

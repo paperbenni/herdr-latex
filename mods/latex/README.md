@@ -15,6 +15,9 @@ Switch sessions or `cd` in the terminal to change folders. The current machine
 and folder appear as a read-only label; there is no separate project selector.
 Main document, engine and PDF output preferences are remembered per machine and
 folder. The folder is searched automatically on opening and after context changes.
+Click the document card to choose another file. Engine and PDF output options are
+under **Build settings**. Icon controls have hover labels; build logs stay
+collapsed until requested or a build fails.
 **Rescan folder** follows directory links safely without a depth limit.
 It recognizes main documents by `\documentclass` and shows those first. Toggle
 **Show all TeX files** to see included chapter files. Type a filename/path filter

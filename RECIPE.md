@@ -8,21 +8,29 @@ PDF in the local desktop viewer. Add a LaTeX toolbar button during installation.
 
 ## What you see
 
-- A 620 by 760 logical-pixel overlay with a fixed header, scrolling body and fixed
+- A 620 by 660 logical-pixel overlay with a fixed header, scrolling body and fixed
   action footer. Its colors follow Herdr's theme. The title is 20 px; controls
   use 12 px text, and secondary labels use 10–11 px.
-- A read-only machine and working-directory card at the top. There is no separate
+- A compact read-only machine and working-directory breadcrumb. Its tooltip shows
+  the full path. There is no separate
   machine, project or folder selector.
-- A main-document input and automatically discovered TeX files. Main documents
-  containing `\documentclass` are shown first; a link reveals included TeX files.
-- A filename/path filter, Search button, result count, searched directory and
-  explicit notices for incomplete scans or unreadable directories.
-- PDFLaTeX, LuaLaTeX and XeLaTeX engine buttons; a collapsed custom-PDF-output
-  setting; build/preview status; refresh and stop controls for an active preview;
-  and a collapsible monospace build log.
-- Footer buttons: **Compile & Preview**, **Compile**, **Preview ↗**. These remain
-  visible when the body scrolls. Buttons requiring a document are disabled until
-  a document is selected, and build buttons are disabled while that build runs.
+- A prominent selected-document card with a document icon, 15 px filename and
+  muted parent path. Click it to expand the file picker; choosing a file collapses
+  the picker. Main documents containing `\documentclass` are shown first; a link
+  reveals included files. A manual path input is revealed only when requested.
+- Filename filtering appears for longer lists or partial searches, with a search
+  icon button. Incomplete scan and unreadable folder notices are concise, with
+  fuller details available in tooltips.
+- A collapsed **Build settings** row, showing the current engine. Expanding it
+  reveals PDFLaTeX, LuaLaTeX and XeLaTeX choices and an optional PDF output override.
+- A compact build/preview status section appears only when relevant to this
+  source or when another preview/build is still active. It includes refresh/stop
+  icons and a collapsible monospace build log. Errors expand the log automatically.
+- The footer has one wide **Compile & Preview** primary button, a secondary
+  **Preview** button and a hammer icon for **Compile only**. These remain visible
+  while scrolling. Icon controls have hover labels and accessibility labels.
+  Buttons requiring a document are disabled until one is selected, and build
+  buttons are disabled while that build runs.
 - The toolbar's LaTeX button turns green (`#15803d`, white text) with a ▶ symbol
   while a build or preview update session is active. Inactive styling follows the
   theme. In a collapsed sidebar the active button shows just ▶.
@@ -64,8 +72,10 @@ panel does not draw an agent list or animate those states.
 
 Install only `mods/latex/` from this repository. It contains a GPUI `View` in
 `main.js`, a standard-library Python helper in `helper.py`, a `mod.json` with
-`place: none`, keyboard focus opt-in and 620×760 overlay dimensions, usage notes,
-and regression tests. Do not install generated typings, bytecode or `.runtime`.
+`place: none`, keyboard focus opt-in and 620×660 overlay dimensions, usage notes,
+and regression tests. Small monochrome SVG icons live under `icons/` and are
+rendered using GPUI's tinted `svg()` builder. Do not install generated typings,
+bytecode or `.runtime`.
 
 Use `gpui-kit`'s View/div and `gpui-base`'s flex builders and InputState/Input.
 Herdr APIs used include `focused`, `spaces`, `panes`, `shared`/`setShared`,
@@ -105,8 +115,8 @@ watchers count as active only with a live PID field and a heartbeat less than
 180 seconds old. If the panel has not yet published a status-file pointer, it can
 look up the existing `latex.active-session` through the helper's status command.
 It keeps working while the panel is closed. `mod.open` toggles the overlay. There is no bundled
-layout or keybinding to replace the person's setup, and no image assets are needed
-by the mod itself.
+layout or keybinding to replace the person's setup. Include the mod's SVG icons
+when copying it.
 
 ## Watch out
 
